@@ -40,6 +40,9 @@ from tradingagents.dataflows.vendors.sec_edgar import (
     get_cashflow as get_sec_edgar_cashflow,
     get_income_statement as get_sec_edgar_income_statement,
 )
+from tradingagents.dataflows.vendors.sec_holdings import (
+    get_etf_holdings_fundamentals as get_sec_holdings_fundamentals,
+)
 from tradingagents.dataflows.vendors.sec_nport import get_fund_flows as get_sec_nport_fund_flows
 from tradingagents.dataflows.vendors.yahoo.fundamentals import (
     get_balance_sheet as get_yfinance_balance_sheet,
@@ -119,6 +122,10 @@ TOOLS_CATEGORIES = {
         "description": "Monthly net flows for U.S. ETFs and mutual funds (SEC N-PORT, quarterly publication)",
         "tools": ["get_fund_flows"],
     },
+    "fund_holdings": {
+        "description": "An ETF's top holdings and their SEC-filed financials, weighted",
+        "tools": ["get_etf_holdings_fundamentals"],
+    },
 }
 
 # Optional enrichment categories. These add macro/event context to the news
@@ -134,6 +141,7 @@ OPTIONAL_CATEGORIES = {
     "etf_flows",
     "futures_positioning",
     "fund_flows",
+    "fund_holdings",
 }
 
 # Mapping of methods to their vendor-specific implementations
@@ -206,6 +214,9 @@ VENDOR_METHODS = {
     "get_fund_flows": {
         "sec_nport": get_sec_nport_fund_flows,
         "businessquant": get_businessquant_fund_flows,
+    },
+    "get_etf_holdings_fundamentals": {
+        "sec_nport": get_sec_holdings_fundamentals,
     },
 }
 

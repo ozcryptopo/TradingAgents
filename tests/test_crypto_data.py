@@ -214,7 +214,7 @@ def test_missing_etf_keys_degrade_instead_of_aborting(monkeypatch):
 @pytest.mark.unit
 def test_crypto_tools_are_routed():
     for method in ("get_onchain_metrics", "get_derivatives_data", "get_etf_flows",
-                   "get_futures_positioning", "get_fund_flows"):
+                   "get_futures_positioning", "get_fund_flows", "get_etf_holdings_fundamentals"):
         assert router.get_category_for_method(method) in router.OPTIONAL_CATEGORIES
         assert router.VENDOR_METHODS[method]  # has a vendor
 

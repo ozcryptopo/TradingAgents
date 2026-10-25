@@ -7,6 +7,7 @@ from tradingagents.agents.tools import (
     get_cashflow,
     get_derivatives_data,
     get_etf_flows,
+    get_etf_holdings_fundamentals,
     get_fund_flows,
     get_fundamentals,
     get_income_statement,
@@ -22,6 +23,7 @@ STOCK_TOOLS = (
     get_income_statement,
     get_insider_transactions,
     get_fund_flows,
+    get_etf_holdings_fundamentals,
 )
 
 # What it is offered for a crypto asset, which has no financial statements:
@@ -40,6 +42,7 @@ STOCK_INSTRUCTIONS = (
     " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
     " Use the available tools: `get_fundamentals` for comprehensive company analysis, `get_balance_sheet`, `get_cashflow`, and `get_income_statement` for specific financial statements, and `get_insider_transactions` for recent insider buying and selling."
     " Call `get_fund_flows` once: with no fund_ticker when the instrument is itself an ETF or fund, otherwise with its main sector ETF (e.g. 'SMH' for a chip stock, 'XLF' for a bank) to show the long-term trend of investor money into or out of its sector. These flows are months old; present them as background trend, not a near-term signal."
+    " If the instrument is an ETF or fund rather than a company, the statement tools return nothing useful: call `get_etf_holdings_fundamentals` (no fund_ticker) instead and analyse its top holdings' growth, margins, leverage and concentration as the fund's fundamentals."
 )
 
 CRYPTO_INSTRUCTIONS = (

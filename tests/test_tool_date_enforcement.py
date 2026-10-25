@@ -64,6 +64,7 @@ DATED_TOOLS = [
     tools.get_etf_flows,
     tools.get_futures_positioning,
     tools.get_fund_flows,
+    tools.get_etf_holdings_fundamentals,
 ]
 
 

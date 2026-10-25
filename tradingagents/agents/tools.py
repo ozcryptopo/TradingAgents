@@ -394,3 +394,28 @@ def get_fund_flows(
     return route_to_vendor(
         "get_fund_flows", fund_ticker or symbol, as_of(curr_date or None, trade_date), months
     )
+
+
+@tool
+def get_etf_holdings_fundamentals(
+    fund_ticker: Annotated[
+        str | None,
+        "U.S. ETF or fund ticker, e.g. 'IVV', 'SMH', 'XLF'. SPY, QQQ and DIA file no holdings "
+        "reports; use IVV/VOO or QQQM. Omit for the instrument under analysis.",
+    ] = None,
+    curr_date: Annotated[str, "Current date in yyyy-mm-dd format"] = "",
+    top: Annotated[int | None, "Number of top holdings to analyse; omit for 10 (max 25)"] = None,
+    symbol: Annotated[str, InjectedState("company_of_interest")] = "",
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve an ETF's largest holdings (from its latest public SEC Form N-PORT)
+    with each holding's SEC-filed financials: latest-quarter revenue growth,
+    operating, net and free-cash-flow margins, and liabilities/equity, plus
+    weighted averages across the fund and concentration (top 3 / top N weight).
+    Use it when the instrument is an ETF or fund; individual stocks have their
+    own statements tools. Uses the configured fund_holdings vendor.
+    """
+    return route_to_vendor(
+        "get_etf_holdings_fundamentals", fund_ticker or symbol, as_of(curr_date or None, trade_date), top
+    )

@@ -173,6 +173,7 @@ def build_default_config() -> dict:
             # Options: sec_nport (free, keyless; monthly flows published quarterly),
             # businessquant (BUSINESSQUANT_API_KEY; fund flows need its paid Max/Ultra plan).
             "fund_flows": "sec_nport",
+            "fund_holdings": "sec_nport",        # ETF top holdings + their financials (keyless)
         },
         # Tool-level configuration (takes precedence over category-level)
         "tool_vendors": {
