@@ -203,16 +203,18 @@ def test_coinglass_uncovered_coin_says_so(monkeypatch):
 # --- Routing and the analyst --------------------------------------------------------
 
 @pytest.mark.unit
-def test_missing_coinglass_key_degrades_instead_of_aborting(monkeypatch):
+def test_missing_etf_keys_degrade_instead_of_aborting(monkeypatch):
+    monkeypatch.delenv("CRYPTOETF_API_KEY", raising=False)
     monkeypatch.delenv("COINGLASS_API_KEY", raising=False)
     out = router.route_to_vendor("get_etf_flows", "BTC-USD", "2026-10-24", None)
     assert out.startswith("DATA_UNAVAILABLE")
-    assert "COINGLASS_API_KEY" in out
+    assert "CRYPTOETF_API_KEY" in out
 
 
 @pytest.mark.unit
 def test_crypto_tools_are_routed():
-    for method in ("get_onchain_metrics", "get_derivatives_data", "get_etf_flows"):
+    for method in ("get_onchain_metrics", "get_derivatives_data", "get_etf_flows",
+                   "get_futures_positioning", "get_fund_flows"):
         assert router.get_category_for_method(method) in router.OPTIONAL_CATEGORIES
         assert router.VENDOR_METHODS[method]  # has a vendor
 

@@ -62,6 +62,8 @@ DATED_TOOLS = [
     tools.get_onchain_metrics,
     tools.get_derivatives_data,
     tools.get_etf_flows,
+    tools.get_futures_positioning,
+    tools.get_fund_flows,
 ]
 
 

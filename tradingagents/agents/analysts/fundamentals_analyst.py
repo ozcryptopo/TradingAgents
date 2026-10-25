@@ -7,6 +7,7 @@ from tradingagents.agents.tools import (
     get_cashflow,
     get_derivatives_data,
     get_etf_flows,
+    get_fund_flows,
     get_fundamentals,
     get_income_statement,
     get_insider_transactions,
@@ -20,6 +21,7 @@ STOCK_TOOLS = (
     get_cashflow,
     get_income_statement,
     get_insider_transactions,
+    get_fund_flows,
 )
 
 # What it is offered for a crypto asset, which has no financial statements:
@@ -37,6 +39,7 @@ STOCK_INSTRUCTIONS = (
     "You are a researcher tasked with analyzing fundamental information over the past week about a company. Please write a comprehensive report of the company's fundamental information such as financial documents, company profile, basic company financials, and company financial history to gain a full view of the company's fundamental information to inform traders. Make sure to include as much detail as possible. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
     " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
     " Use the available tools: `get_fundamentals` for comprehensive company analysis, `get_balance_sheet`, `get_cashflow`, and `get_income_statement` for specific financial statements, and `get_insider_transactions` for recent insider buying and selling."
+    " Call `get_fund_flows` once: with no fund_ticker when the instrument is itself an ETF or fund, otherwise with its main sector ETF (e.g. 'SMH' for a chip stock, 'XLF' for a bank) to show whether investor money is moving into or out of its sector."
 )
 
 CRYPTO_INSTRUCTIONS = (

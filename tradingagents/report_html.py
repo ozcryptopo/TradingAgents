@@ -205,6 +205,7 @@ _CATEGORY = {
     "core_stock_apis": "Prices", "technical_indicators": "Indicators", "fundamental_data": "Fundamentals",
     "news_data": "News", "macro_data": "Macro", "prediction_markets": "Prediction markets",
     "onchain_data": "On-chain", "derivatives_data": "Derivatives", "etf_flows": "ETF flows",
+    "futures_positioning": "Futures positioning", "fund_flows": "Fund flows",
 }
 
 

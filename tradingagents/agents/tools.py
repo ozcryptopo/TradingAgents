@@ -342,3 +342,52 @@ def get_etf_flows(
     vendor; reports unavailable when no key is configured.
     """
     return route_to_vendor("get_etf_flows", symbol, as_of(curr_date, trade_date), look_back_days)
+
+
+@tool
+def get_futures_positioning(
+    market: Annotated[
+        str | None,
+        "Futures market: 'sp500', 'nasdaq100', 'russell2000', 'dow', 'vix', 'treasury_2y', "
+        "'treasury_5y', 'treasury_10y', 'treasury_30y', 'ultra_bond', 'dollar', 'bitcoin', 'ether'. "
+        "Omit for the instrument's own market (CME Bitcoin/Ether for those coins, else the S&P 500).",
+    ] = None,
+    curr_date: Annotated[str, "Current date in yyyy-mm-dd format"] = "",
+    weeks: Annotated[int | None, "Number of weekly reports; omit for 8"] = None,
+    symbol: Annotated[str, InjectedState("company_of_interest")] = "",
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve weekly futures positioning from the CFTC Commitments of Traders
+    (Traders in Financial Futures) report: net long/short of leveraged funds,
+    asset managers and dealers, as % of open interest and week-over-week change,
+    for equity-index, Treasury, VIX, dollar and CME crypto futures. Uses the
+    configured futures_positioning vendor.
+    """
+    return route_to_vendor(
+        "get_futures_positioning", market, as_of(curr_date or None, trade_date), symbol, weeks
+    )
+
+
+@tool
+def get_fund_flows(
+    fund_ticker: Annotated[
+        str | None,
+        "U.S. ETF or mutual fund ticker, e.g. 'SPY', 'QQQ', 'TLT', or a sector ETF such as 'SMH'. "
+        "Omit for the instrument under analysis when it is itself a fund.",
+    ] = None,
+    curr_date: Annotated[str, "Current date in yyyy-mm-dd format"] = "",
+    months: Annotated[int | None, "Number of months; omit for 12"] = None,
+    symbol: Annotated[str, InjectedState("company_of_interest")] = "",
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve monthly net investor flows (creations minus redemptions) for a U.S.
+    ETF or mutual fund, from SEC monthly filings: latest month, 3-month and
+    window totals, and net assets. Use it on the instrument when it is an ETF, or
+    on its sector or index ETF for a single stock. Uses the configured
+    fund_flows vendor.
+    """
+    return route_to_vendor(
+        "get_fund_flows", fund_ticker or symbol, as_of(curr_date or None, trade_date), months
+    )

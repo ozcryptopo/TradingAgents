@@ -17,10 +17,17 @@ from tradingagents.dataflows.vendors.alpha_vantage import (
     get_news as get_alpha_vantage_news,
     get_stock as get_alpha_vantage_stock,
 )
+from tradingagents.dataflows.vendors.businessquant import (
+    get_fund_flows as get_businessquant_fund_flows,
+)
+from tradingagents.dataflows.vendors.cftc import (
+    get_futures_positioning as get_cftc_futures_positioning,
+)
 from tradingagents.dataflows.vendors.coinglass import get_etf_flows as get_coinglass_etf_flows
 from tradingagents.dataflows.vendors.coinmetrics import (
     get_onchain_metrics as get_coinmetrics_onchain,
 )
+from tradingagents.dataflows.vendors.cryptoetf import get_etf_flows as get_cryptoetf_etf_flows
 from tradingagents.dataflows.vendors.fred import get_macro_data as get_fred_macro_data
 from tradingagents.dataflows.vendors.hyperliquid import (
     get_derivatives_data as get_hyperliquid_derivatives,
@@ -103,6 +110,14 @@ TOOLS_CATEGORIES = {
         "description": "U.S. spot crypto ETF daily net flows",
         "tools": ["get_etf_flows"],
     },
+    "futures_positioning": {
+        "description": "Weekly CFTC futures positioning by trader group",
+        "tools": ["get_futures_positioning"],
+    },
+    "fund_flows": {
+        "description": "Monthly net flows for U.S. ETFs and mutual funds",
+        "tools": ["get_fund_flows"],
+    },
 }
 
 # Optional enrichment categories. These add macro/event context to the news
@@ -116,6 +131,8 @@ OPTIONAL_CATEGORIES = {
     "onchain_data",
     "derivatives_data",
     "etf_flows",
+    "futures_positioning",
+    "fund_flows",
 }
 
 # Mapping of methods to their vendor-specific implementations
@@ -179,7 +196,14 @@ VENDOR_METHODS = {
         "hyperliquid": get_hyperliquid_derivatives,
     },
     "get_etf_flows": {
+        "cryptoetf": get_cryptoetf_etf_flows,
         "coinglass": get_coinglass_etf_flows,
+    },
+    "get_futures_positioning": {
+        "cftc": get_cftc_futures_positioning,
+    },
+    "get_fund_flows": {
+        "businessquant": get_businessquant_fund_flows,
     },
 }
 
