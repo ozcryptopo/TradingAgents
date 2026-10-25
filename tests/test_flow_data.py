@@ -184,3 +184,12 @@ def test_businessquant_missing_key_degrades(monkeypatch):
     monkeypatch.delenv("BUSINESSQUANT_API_KEY", raising=False)
     out = router.route_to_vendor("get_fund_flows", "SPY", "2026-10-24", None)
     assert out.startswith("DATA_UNAVAILABLE") and "BUSINESSQUANT_API_KEY" in out
+
+
+@pytest.mark.unit
+def test_businessquant_plan_refusal_says_why(monkeypatch):
+    monkeypatch.setenv("BUSINESSQUANT_API_KEY", "secret")
+    body = {"metadata": {"note": "Free plan: fund flows are available on the Max and Ultra plans."}}
+    with mock.patch.object(businessquant.requests, "get", return_value=_response(status=403, payload=body)), \
+         pytest.raises(businessquant.BusinessQuantNotConfiguredError, match="Max and Ultra"):
+        businessquant.get_fund_flows("SPY", "2026-10-24")

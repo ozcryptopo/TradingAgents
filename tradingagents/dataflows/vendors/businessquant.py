@@ -51,8 +51,14 @@ def _request(params: dict) -> dict:
     if response.status_code == 429 or response.status_code >= 500:
         raise VendorUnavailableError(f"BusinessQuant returned {response.status_code}")
     if response.status_code in (401, 403):
+        # The body says why: a bad key, or a plan without fund flows.
+        try:
+            note = (response.json().get("metadata") or {}).get("note", "")
+        except ValueError:
+            note = ""
         raise BusinessQuantNotConfiguredError(
-            f"BusinessQuant rejected the API key ({response.status_code}); check BUSINESSQUANT_API_KEY."
+            f"BusinessQuant refused the request ({response.status_code}): "
+            f"{note or 'check BUSINESSQUANT_API_KEY'}"
         )
     if response.status_code in (400, 404):
         return {}
