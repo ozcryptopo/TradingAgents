@@ -40,6 +40,7 @@ from tradingagents.dataflows.vendors.sec_edgar import (
     get_cashflow as get_sec_edgar_cashflow,
     get_income_statement as get_sec_edgar_income_statement,
 )
+from tradingagents.dataflows.vendors.sec_nport import get_fund_flows as get_sec_nport_fund_flows
 from tradingagents.dataflows.vendors.yahoo.fundamentals import (
     get_balance_sheet as get_yfinance_balance_sheet,
     get_cashflow as get_yfinance_cashflow,
@@ -115,7 +116,7 @@ TOOLS_CATEGORIES = {
         "tools": ["get_futures_positioning"],
     },
     "fund_flows": {
-        "description": "Monthly net flows for U.S. ETFs and mutual funds",
+        "description": "Monthly net flows for U.S. ETFs and mutual funds (SEC N-PORT, quarterly publication)",
         "tools": ["get_fund_flows"],
     },
 }
@@ -203,6 +204,7 @@ VENDOR_METHODS = {
         "cftc": get_cftc_futures_positioning,
     },
     "get_fund_flows": {
+        "sec_nport": get_sec_nport_fund_flows,
         "businessquant": get_businessquant_fund_flows,
     },
 }

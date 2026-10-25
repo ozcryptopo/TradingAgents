@@ -170,7 +170,9 @@ def build_default_config() -> dict:
             # First vendor with a key wins: cryptoetf (free CRYPTOETF_API_KEY), coinglass (paid COINGLASS_API_KEY).
             "etf_flows": "cryptoetf,coinglass",
             "futures_positioning": "cftc",       # Options: cftc (keyless, weekly)
-            "fund_flows": "businessquant",       # Options: businessquant (free BUSINESSQUANT_API_KEY, monthly)
+            # Options: sec_nport (free, keyless; monthly flows published quarterly),
+            # businessquant (BUSINESSQUANT_API_KEY; fund flows need its paid Max/Ultra plan).
+            "fund_flows": "sec_nport",
         },
         # Tool-level configuration (takes precedence over category-level)
         "tool_vendors": {

@@ -181,8 +181,11 @@ def test_businessquant_crypto_pair_is_not_applicable(monkeypatch):
 
 @pytest.mark.unit
 def test_businessquant_missing_key_degrades(monkeypatch):
+    from tradingagents.dataflows.config import set_config
+
     monkeypatch.delenv("BUSINESSQUANT_API_KEY", raising=False)
-    out = router.route_to_vendor("get_fund_flows", "SPY", "2026-10-24", None)
+    set_config({"data_vendors": {"fund_flows": "businessquant"}})
+    out = router.route_to_vendor("get_fund_flows", "VOO", "2026-10-24", None)
     assert out.startswith("DATA_UNAVAILABLE") and "BUSINESSQUANT_API_KEY" in out
 
 

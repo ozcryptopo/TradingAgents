@@ -373,20 +373,23 @@ def get_futures_positioning(
 def get_fund_flows(
     fund_ticker: Annotated[
         str | None,
-        "U.S. ETF or mutual fund ticker, e.g. 'SPY', 'QQQ', 'TLT', or a sector ETF such as 'SMH'. "
+        "U.S. ETF or mutual fund ticker, e.g. 'IVV', 'VOO', 'QQQM', 'TLT', or a sector ETF such as "
+        "'SMH' or 'XLF'. SPY, QQQ and DIA are unit trusts with no filings; use IVV/VOO or QQQM. "
         "Omit for the instrument under analysis when it is itself a fund.",
     ] = None,
     curr_date: Annotated[str, "Current date in yyyy-mm-dd format"] = "",
-    months: Annotated[int | None, "Number of months; omit for 12"] = None,
+    months: Annotated[int | None, "Number of months; omit for 24"] = None,
     symbol: Annotated[str, InjectedState("company_of_interest")] = "",
     trade_date: Annotated[str, InjectedState("trade_date")] = "",
 ) -> str:
     """
     Retrieve monthly net investor flows (creations minus redemptions) for a U.S.
-    ETF or mutual fund, from SEC monthly filings: latest month, 3-month and
-    window totals, and net assets. Use it on the instrument when it is an ETF, or
-    on its sector or index ETF for a single stock. Uses the configured
-    fund_flows vendor.
+    ETF or mutual fund from its SEC Form N-PORT filings: latest month, 3/6-month
+    and window totals, and net assets. Filings are published quarterly about 60
+    days after quarter end, so the latest month is 2-5 months old: a long-term
+    trend signal, not timing. Use it on the instrument when it is an ETF, or on
+    its sector or index ETF for a single stock. Uses the configured fund_flows
+    vendor.
     """
     return route_to_vendor(
         "get_fund_flows", fund_ticker or symbol, as_of(curr_date or None, trade_date), months
