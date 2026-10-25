@@ -68,6 +68,10 @@ def analyze(
         None, "--html/--no-html",
         help="Save the report as one HTML page too, complete_report.html, without asking (default: yes)",
     ),
+    pdf: bool | None = typer.Option(
+        None, "--pdf/--no-pdf",
+        help="Also make a designed PDF research report, research_report.pdf, without asking (default: yes)",
+    ),
 ):
     """Run an analysis. This is what a bare `tradingagents` does.
 
@@ -89,7 +93,7 @@ def analyze(
             raise typer.Exit(code=1) from None
 
     try:
-        flags = {"ticker": ticker, "date": date, "analysts": analysts, "save": save, "show": show, "html": html}
+        flags = {"ticker": ticker, "date": date, "analysts": analysts, "save": save, "show": show, "html": html, "pdf": pdf}
         run_analysis(checkpoint=checkpoint, portfolio=portfolio_context, flags=flags)
     except _NO_CONSOLE_ERRORS:
         # A terminal with no console buffer cannot host the interactive prompts.

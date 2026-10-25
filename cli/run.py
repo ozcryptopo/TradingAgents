@@ -386,7 +386,8 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
     console.print(f"[dim]{analyst_wall_time_tracker.format_summary()}[/dim]")
 
     _offer_reports(final_state, graph, selections["ticker"],
-                   save=flags.get("save"), show=flags.get("show"), html=flags.get("html"))
+                   save=flags.get("save"), show=flags.get("show"), html=flags.get("html"),
+                   pdf=flags.get("pdf"))
 
 
 def _yes(question: str) -> bool:
@@ -423,7 +424,7 @@ def _open_page(page: Path) -> None:
         console.print(f"  [dim]Could not open a browser; the page is at:[/dim] {page}")
 
 
-def _offer_reports(final_state, graph, ticker, save=None, show=None, html=None):
+def _offer_reports(final_state, graph, ticker, save=None, show=None, html=None, pdf=None):
     """Save the report tree and show it; ``save``/``show``/``html`` answer the questions when given.
 
     A saved report includes the HTML page unless ``html`` is False. Someone
@@ -444,19 +445,35 @@ def _offer_reports(final_state, graph, ticker, save=None, show=None, html=None):
             ).strip())
         if html is None:
             html = _yes("Also save it as an HTML page?") if asked else True
+        if pdf is None:
+            pdf = _yes("Also make a PDF research report?") if asked else True
         saved = False
         try:
-            report_file = graph.save_reports(final_state, ticker, save_path, html=html)
+            if pdf:
+                console.print("[dim]Making the PDF research report…[/dim]")
+            report_file = graph.save_reports(final_state, ticker, save_path, html=html, pdf=pdf)
             saved = True
             console.print(f"\n[green]✓ Report saved to:[/green] {save_path.resolve()}")
             console.print(f"  [dim]Complete report:[/dim] {report_file.name}")
         except Exception as e:
             console.print(f"[red]Error saving report: {e}[/red]")
+        if saved and pdf:
+            document = (save_path / "research_report.pdf").resolve()
+            if document.exists():
+                console.print(f"  [dim]PDF report:[/dim] {document.name}")
+            else:
+                error = save_path / "research_report_pdf_error.txt"
+                reason = error.read_text(encoding="utf-8").strip() if error.exists() else "unknown error"
+                console.print(f"  [yellow]PDF not made:[/yellow] {reason}")
         if saved and html:
             page = (save_path / "complete_report.html").resolve()
             console.print(f"  [dim]HTML report:[/dim] {page.name}")
-            if asked:
-                _open_page(page)
+        if saved and asked:
+            document = (save_path / "research_report.pdf").resolve()
+            if pdf and document.exists():
+                _open_page(document)
+            elif html:
+                _open_page((save_path / "complete_report.html").resolve())
 
     if show is None:
         show = typer.prompt("\nDisplay full report on screen?", default="Y").strip().upper() in ("Y", "YES", "")

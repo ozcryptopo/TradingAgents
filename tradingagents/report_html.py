@@ -13,6 +13,7 @@ from markdown_it import MarkdownIt
 
 from tradingagents.agents.rating import run_rating
 from tradingagents.branding import brand
+from tradingagents.disclaimer import TOP_NOTICE, full_disclosures
 from tradingagents.reporting import analyst_names
 
 # Ratings by direction, so the page can show which way the call leans.
@@ -115,6 +116,12 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .contents, .contents .label { transition: none; }
 }
+
+/* The legal notice: first thing on the page. */
+.notice { margin: 0 0 2rem; padding: 0.8rem 1rem; border: 1px solid var(--edge); border-left: 4px solid var(--down);
+  border-radius: 4px; background: var(--wash); font: 0.82rem/1.5 var(--sans); color: var(--ink); }
+.disclosures h2 { break-before: auto; }
+.disclosures p { font: 0.8rem/1.55 var(--sans); color: var(--muted); }
 
 /* The maker's credit: one quiet line at the foot. */
 .credit { margin-top: 4.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule);
@@ -275,6 +282,9 @@ def render_report(ticker: str, final_state: dict, settings: dict | None, parts) 
     name = brand()
     masthead_brand = f'<p class="logo">{escape(name)}</p>\n' if name else ""
     footer = f'<footer class="credit">{escape(name)}</footer>\n' if name else ""
+    head, rest = TOP_NOTICE.split(". ", 1)
+    notice = f"<strong>{escape(head)}.</strong> {escape(rest)}"
+    disclosures = "".join(f"<p><strong>{escape(h)}.</strong> {escape(t)}</p>" for h, t in full_disclosures())
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -286,6 +296,7 @@ def render_report(ticker: str, final_state: dict, settings: dict | None, parts) 
 </head>
 <body>
 <div class="page" id="top">
+<aside class="notice" role="note">{notice}</aside>
 <header class="masthead">
 {masthead_brand}<h1>{title}</h1>
 <p class="date">{escape(f"Analysis of {date}" if date else "Analysis")}</p>
@@ -294,6 +305,7 @@ def render_report(ticker: str, final_state: dict, settings: dict | None, parts) 
 <nav class="contents" aria-label="Sections"><ul>{"".join(contents)}</ul></nav>
 <main>
 {"".join(body)}
+<section class="disclosures"><h2>Important disclosures</h2>{disclosures}</section>
 </main>
 {footer}</div>
 <a class="to-top" href="#top">Top</a>

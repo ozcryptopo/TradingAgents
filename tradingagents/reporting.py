@@ -6,10 +6,12 @@ CLI and ``TradingAgentsGraph.save_reports`` both call this, so a headless / API
 run produces the same on-disk report tree a CLI run does.
 """
 
+import logging
 from datetime import datetime
 from pathlib import Path
 
 from tradingagents.agents.rating import run_rating
+from tradingagents.disclaimer import markdown_bottom, markdown_top
 
 
 def analyst_names(keys) -> list[str]:
@@ -19,7 +21,7 @@ def analyst_names(keys) -> list[str]:
 
 def _header(ticker: str, final_state: dict, settings: dict | None) -> str:
     """The report's title and what produced it: analysis date, version, models, analysts, vendors."""
-    lines = [f"# Trading Analysis Report: {ticker}", ""]
+    lines = [f"# Research Report: {ticker}", "", markdown_top().rstrip(), ""]
     if final_state.get("trade_date"):
         lines.append(f"- Analysis date: {final_state['trade_date']}")
     if final_state.get("final_trade_decision"):
@@ -47,6 +49,8 @@ def _header(ticker: str, final_state: dict, settings: dict | None) -> str:
 
 
 # The report's sections in order: (heading, folder, [(agent, file, state path)]).
+logger = logging.getLogger(__name__)
+
 _SECTIONS = (
     ("I. Analyst Team Reports", "1_analysts", (
         ("Market Analyst", "market.md", ("market_report",)),
@@ -90,7 +94,7 @@ def _report_parts(final_state: dict) -> list[tuple[str, str, list[tuple[str, str
 
 
 def write_report_tree(final_state: dict, ticker: str, save_path, settings: dict | None = None,
-                      html: bool = True) -> Path:
+                      html: bool = True, pdf: bool = False) -> Path:
     """Save a completed run's reports to ``save_path``; return the complete-report path.
 
     ``settings`` (``TradingAgentsGraph.run_settings()``) adds what produced the run
@@ -109,7 +113,8 @@ def write_report_tree(final_state: dict, ticker: str, save_path, settings: dict 
         sections.append(f"## {heading}\n\n{content}")
 
     (save_path / "complete_report.md").write_text(
-        _header(ticker, final_state, settings) + "\n\n".join(sections), encoding="utf-8"
+        _header(ticker, final_state, settings) + "\n\n".join(sections) + "\n\n" + markdown_bottom() + "\n",
+        encoding="utf-8",
     )
     if html:
         from tradingagents.report_html import render_report
@@ -117,4 +122,11 @@ def write_report_tree(final_state: dict, ticker: str, save_path, settings: dict 
         (save_path / "complete_report.html").write_text(
             render_report(ticker, final_state, settings, parts), encoding="utf-8"
         )
+    if pdf:
+        from tradingagents.report_pdf import write_pdf
+
+        ok, message = write_pdf(ticker, final_state, settings, parts, save_path)
+        if not ok:
+            logger.warning("PDF report not written: %s", message)
+            (save_path / "research_report_pdf_error.txt").write_text(message + "\n", encoding="utf-8")
     return save_path / "complete_report.md"

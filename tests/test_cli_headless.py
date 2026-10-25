@@ -141,7 +141,7 @@ def test_the_command_passes_its_flags_to_the_run(monkeypatch):
                                                "--analysts", "market,news", "--save", "--no-show"])
 
     assert result.exit_code == 0, result.output
-    assert seen["flags"] == {**FLAGS, "html": None}
+    assert seen["flags"] == {**FLAGS, "html": None, "pdf": None}
 
 
 @pytest.mark.unit
@@ -256,7 +256,7 @@ def _answer(monkeypatch, answers):
 
 @pytest.mark.unit
 def test_an_interactive_run_asks_for_the_html_page_and_opens_it(monkeypatch, tmp_path):
-    asked = _answer(monkeypatch, {"Save report": "Y", "Save path": "rel/out", "HTML": "Y",
+    asked = _answer(monkeypatch, {"Save report": "Y", "Save path": "rel/out", "HTML": "Y", "PDF": "N",
                                   "browser": "Y", "Display full report": "N"})
     browser = _Browser()
     monkeypatch.setattr(run, "_graphical_browser", lambda: browser)
@@ -271,7 +271,7 @@ def test_an_interactive_run_asks_for_the_html_page_and_opens_it(monkeypatch, tmp
 
 @pytest.mark.unit
 def test_without_a_browser_window_the_page_is_not_offered_for_opening(monkeypatch, tmp_path):
-    asked = _answer(monkeypatch, {"Save report": "Y", "Save path": None, "HTML": "Y",
+    asked = _answer(monkeypatch, {"Save report": "Y", "Save path": None, "HTML": "Y", "PDF": "N",
                                   "Display full report": "N"})
     monkeypatch.setattr(run, "_graphical_browser", lambda: None)
 
@@ -283,7 +283,7 @@ def test_without_a_browser_window_the_page_is_not_offered_for_opening(monkeypatc
 
 @pytest.mark.unit
 def test_declining_the_html_page_saves_only_the_markdown(monkeypatch, tmp_path):
-    asked = _answer(monkeypatch, {"Save report": "Y", "Save path": None, "HTML": "N",
+    asked = _answer(monkeypatch, {"Save report": "Y", "Save path": None, "HTML": "N", "PDF": "N",
                                   "Display full report": "N"})
     monkeypatch.setattr(run, "_graphical_browser", lambda: _Browser())
 
@@ -354,7 +354,7 @@ def test_a_page_the_browser_cannot_open_is_pointed_to(monkeypatch, tmp_path, cap
         def open(self, url):
             return False
 
-    _answer(monkeypatch, {"Save report": "Y", "Save path": None, "HTML": "Y", "browser": "Y",
+    _answer(monkeypatch, {"Save report": "Y", "Save path": None, "HTML": "Y", "PDF": "N", "browser": "Y",
                           "Display full report": "N"})
     monkeypatch.setattr(run, "_graphical_browser", lambda: Failing())
     monkeypatch.setattr(run.console, "print", lambda *a, **k: print(*a))
