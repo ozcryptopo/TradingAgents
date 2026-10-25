@@ -22,7 +22,9 @@ import xml.etree.ElementTree as ET
 from datetime import date
 from pathlib import Path
 
+from tradingagents.dataflows import verify
 from tradingagents.dataflows.config import get_config
+from tradingagents.dataflows.date_window import is_historical
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.dataflows.files import replace_file
 from tradingagents.dataflows.vendors import sec_nport
@@ -279,6 +281,8 @@ def get_etf_holdings_fundamentals(fund_ticker: str, as_of_date: str, top: int | 
     except VendorUnavailableError:
         by_ticker, by_name = {}, {}
 
+    historical = is_historical(as_of_date)
+    checks: list[str] = []
     rows, weighted = [], {k: [0.0, 0.0] for k in ("revenue_growth_yoy", "operating_margin", "net_margin", "fcf_margin")}
     for holding, weight in zip(chosen, weights, strict=True):
         found = _match(holding, by_ticker, by_name)
@@ -296,10 +300,13 @@ def get_etf_holdings_fundamentals(fund_ticker: str, as_of_date: str, top: int | 
                     acc[0] += metrics[key] * weight
                     acc[1] += weight
         m = metrics or {}
+        if metrics and label:
+            checks.extend(verify.check(label, metrics, historical))
+        quarter = m.get("quarter_end", "")[:7] or "n/a"
         leverage = f"{m['liabilities_to_equity']:.2f}x" if m.get("liabilities_to_equity") is not None else "n/a"
         note = "" if metrics else " (no SEC financials: foreign/IFRS filer or unmatched)"
         rows.append(
-            f"| {name[:32]}{note} | {label or 'n/a'} | {weight:.2f}% | {_pct(m.get('revenue_growth_yoy'))} | "
+            f"| {name[:32]}{note} | {label or 'n/a'} | {weight:.2f}% | {_pct(m.get('revenue_growth_yoy'))} | {quarter} | "
             f"{_pct(m.get('operating_margin'), False)} | {_pct(m.get('net_margin'), False)} | "
             f"{_pct(m.get('fcf_margin'), False)} | {leverage} |"
         )
@@ -324,8 +331,14 @@ def get_etf_holdings_fundamentals(fund_ticker: str, as_of_date: str, top: int | 
     lines += [
         "- Margins are from each company's latest annual report; growth is the latest quarter vs the same quarter a year earlier.",
         "",
-        "| Holding | Ticker | Weight | Revenue growth YoY | Operating margin | Net margin | FCF margin | Liabilities/equity |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Holding | Ticker | Weight | Revenue growth YoY | Growth quarter | Operating margin | Net margin | FCF margin | Liabilities/equity |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
         *rows,
     ]
+    if checks:
+        lines += [
+            "",
+            "### Checks on unusual figures (recomputed from Yahoo Finance for the same period)",
+            *(f"- {c}" for c in checks),
+        ]
     return "\n".join(lines) + "\n"

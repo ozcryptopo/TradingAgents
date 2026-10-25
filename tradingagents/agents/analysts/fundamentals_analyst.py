@@ -42,7 +42,7 @@ STOCK_INSTRUCTIONS = (
     " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
     " Use the available tools: `get_fundamentals` for comprehensive company analysis, `get_balance_sheet`, `get_cashflow`, and `get_income_statement` for specific financial statements, and `get_insider_transactions` for recent insider buying and selling."
     " Call `get_fund_flows` once: with no fund_ticker when the instrument is itself an ETF or fund, otherwise with its main sector ETF (e.g. 'SMH' for a chip stock, 'XLF' for a bank) to show the long-term trend of investor money into or out of its sector. These flows are months old; present them as background trend, not a near-term signal."
-    " If the instrument is an ETF or fund rather than a company, the statement tools return nothing useful: call `get_etf_holdings_fundamentals` (no fund_ticker) instead and analyse its top holdings' growth, margins, leverage and concentration as the fund's fundamentals."
+    " If the instrument is an ETF or fund rather than a company, the statement tools return nothing useful: call `get_etf_holdings_fundamentals` (no fund_ticker) instead and analyse its top holdings' growth, margins, leverage and concentration as the fund's fundamentals. When that report has a 'Checks on unusual figures' section, state for each extreme number whether it was confirmed or differs, use the newer quarter where one is reported, and never build a conclusion on a figure marked DIFFERS or unchecked."
 )
 
 CRYPTO_INSTRUCTIONS = (

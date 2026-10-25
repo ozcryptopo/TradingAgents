@@ -67,6 +67,14 @@ def _facts(q_now, q_year_ago, fy_rev, fy_net, fy_op, ocf, capex, liabilities, eq
     }}}
 
 
+def _yahoo(ticker):
+    # NVDA per Yahoo: same FY operating margin (confirms) and a newer quarter.
+    return {
+        "q_revenue": {"2026-07-31": 50e9, "2026-04-30": 40e9, "2025-07-31": 22e9, "2025-04-30": 20e9},
+        "revenue": {"2026-01-31": 130e9}, "operating": {"2026-01-31": 80e9}, "net": {"2026-01-31": 70e9},
+    }
+
+
 _FACTS = {
     "0001045810": _facts(40e9, 20e9, 130e9, 70e9, 80e9, 60e9, 4e9, 30e9, 80e9),   # NVDA: +100% growth
     "0001730168": _facts(15e9, 12e9, 55e9, 10e9, 20e9, 20e9, 1e9, 70e9, 70e9),    # AVGO: +25%
@@ -93,7 +101,8 @@ def sec(tmp_path):
          mock.patch.object(sec_nport, "_filings_from_search",
                            return_value=[{"adsh": "0000000001-26-000001", "cik": "1", "filed": "2026-08-28"}]), \
          mock.patch.object(sec_nport, "_get", side_effect=fake_get), \
-         mock.patch.object(sec_holdings, "_cached_json", side_effect=_cached_json):
+         mock.patch.object(sec_holdings, "_cached_json", side_effect=_cached_json), \
+         mock.patch("tradingagents.dataflows.verify.yahoo_statements", side_effect=_yahoo):
         yield docs
 
 
@@ -103,7 +112,7 @@ def test_top_holdings_with_weighted_financials(sec):
     assert "Holdings as of 2026-06-30" in out
     assert "top 3 = 42.0%" in out                       # 20 + 12 + 10; cash excluded
     nvda = next(line for line in out.splitlines() if line.startswith("| NVIDIA"))
-    assert "| NVDA | 20.00% | +100.0% | 61.5% | 53.8% | 43.1% | 0.38x |" in nvda
+    assert "| NVDA | 20.00% | +100.0% | 2026-04 | 61.5% | 53.8% | 43.1% | 0.38x |" in nvda
     assert "| AVGO | 10.00% | +25.0% |" in out          # matched by the filing's ticker
     assert "Taiwan Semiconductor" in out and "no SEC financials" in out
     # Weighted over NVDA (20) and AVGO (10): growth (100*20 + 25*10) / 30 = 75%
@@ -165,3 +174,11 @@ def test_liabilities_derived_when_not_tagged_and_net_income_fallback(tmp_path):
         m = sec_holdings._metrics("0000000001", "2026-10-25")
     assert m["net_margin"] == pytest.approx(0.2)
     assert m["liabilities_to_equity"] == pytest.approx(0.5)   # (150 - 100) / 100
+
+
+@pytest.mark.unit
+def test_unusual_figures_are_cross_checked(sec):
+    out = sec_holdings.get_etf_holdings_fundamentals("SMH", "2026-10-25")
+    assert "### Checks on unusual figures" in out
+    assert "NVDA: operating margin 61.5% (fiscal year to 2026-01-31) CONFIRMED by Yahoo Finance (61.5%)" in out
+    assert "NVDA: net margin 53.8% (fiscal year to 2026-01-31) CONFIRMED" in out
