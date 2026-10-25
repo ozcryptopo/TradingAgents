@@ -1,3 +1,5 @@
+> **About this fork.** This is a modified version of [TradingAgents](https://github.com/TauricResearch/TradingAgents) by Tauric Research, used under the Apache License 2.0 (see `LICENSE`). Changes in this fork include added crypto, ETF-flow, futures-positioning and fund-holdings data sources, second-source checks on extreme figures, and unbranded report output (set `REPORT_BRAND` to add your own name). It is not affiliated with or endorsed by Tauric Research.
+
 <p align="center">
   <img src="tradingagents/assets/tauric-logo.svg" width="60%" alt="Tauric Research">
 </p>

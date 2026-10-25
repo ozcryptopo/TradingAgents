@@ -2,13 +2,12 @@
 
 import datetime
 import os
-from pathlib import Path
 
 import typer
 from rich.align import Align
 from rich.panel import Panel
 
-from cli import updates
+from cli import updates  # noqa: F401  (upstream notices are off; kept importable)
 from cli.display import (
     console,
 )
@@ -37,6 +36,7 @@ from cli.prompts import (
     select_research_depth,
     select_shallow_thinking_agent,
 )
+from tradingagents.branding import display_name
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.llm_clients.factory import REASONING_EFFORT_PROVIDERS
 from tradingagents.llm_clients.openai_client import check_endpoint
@@ -114,33 +114,22 @@ def _from_flag(parse, value, *args):
 
 def _prompt_selections(prefs, flags):
     """Walk the selection steps. ``prefs`` prefills; flags and the environment skip."""
-    with open(Path(__file__).parent / "static" / "welcome.txt", encoding="utf-8") as f:
-        welcome_ascii = f.read()
-
-    welcome_content = f"{welcome_ascii}\n"
-    welcome_content += "[bold green]TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI[/bold green]\n\n"
+    welcome_content = f"[bold green]{display_name()}[/bold green]\n\n"
     welcome_content += "[bold]Workflow Steps:[/bold]\n"
-    welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
-    welcome_content += (
-        "[dim]Built by [Tauric Research](https://github.com/TauricResearch)[/dim]"
-    )
+    welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management"
 
     welcome_box = Panel(
         welcome_content,
         border_style="green",
         padding=(1, 2),
-        title="Welcome to TradingAgents",
-        subtitle="Multi-Agents LLM Financial Trading Framework",
+        title=display_name(),
     )
     console.print(Align.center(welcome_box))
     console.print()
     console.print()  # Add vertical space before announcements
 
-    # What's new comes from a cache refreshed in the background, and only for
-    # someone at a terminal: a run never waits on it and unattended runs skip it.
-    if updates.enabled():
-        updates.show(console)
-        updates.start_background_refresh()
+    # The upstream project's release and announcement feed is not shown: this
+    # build is a modified fork, so its notices would point at another version.
 
     def create_question_box(title, prompt, default=None):
         box_content = f"[bold]{title}[/bold]\n"

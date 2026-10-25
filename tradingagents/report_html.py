@@ -8,22 +8,16 @@ off, so nothing a model wrote can inject markup or load a remote asset.
 
 from datetime import datetime
 from html import escape
-from importlib.resources import files
 
 from markdown_it import MarkdownIt
 
 from tradingagents.agents.rating import run_rating
+from tradingagents.branding import brand
 from tradingagents.reporting import analyst_names
 
 # Ratings by direction, so the page can show which way the call leans.
 _TONE = {"Buy": "up", "Overweight": "up", "Hold": "level", "Underweight": "down", "Sell": "down"}
 
-# The Tauric Research logo as published (tauric.ai/brand/tauric-logo.svg), drawn
-# in the page so it loads nothing.
-_LOGO = files("tradingagents").joinpath("assets/tauric-logo.svg").read_text(encoding="utf-8").strip()
-_COMPANY = "https://tauric.ai"
-_ORG = "https://github.com/TauricResearch"
-_PROJECT = f"{_ORG}/TradingAgents"
 
 _CSS = """
 :root {
@@ -57,7 +51,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .masthead { padding-bottom: 1.75rem; border-bottom: 1px solid var(--rule); }
 /* The logo leads at the top left, where readers look for it, 24px tall (the usual
    on-screen floor for a wordmark) with at least its height clear below. */
-.masthead .logo { display: block; width: fit-content; margin: 0 0 2.25rem; }
+.masthead .logo { display: block; width: fit-content; margin: 0 0 2.25rem; font-weight: 600; letter-spacing: .02em; color: var(--muted); }
 .masthead .logo svg { display: block; height: 1.5rem; width: auto; }
 .masthead h1 {
   margin: 0; font: 600 2.6rem/1.1 var(--sans); letter-spacing: -0.02em;
@@ -241,7 +235,7 @@ def _run_details(final_state: dict, settings: dict | None) -> list[tuple[str, st
             details.append(("Data vendors", " ".join(
                 _group(_CATEGORY.get(k, k), _chain(v)) for k, v in vendors.items()
             )))
-        details.append(("Version", escape(f"TradingAgents {s('version', '?')}")))
+        details.append(("Version", escape(f"Engine {s('version', '?')}")))
     if final_state.get("memory_note"):
         details.append(("Memory log", escape(final_state["memory_note"])))
     return details
@@ -278,20 +272,22 @@ def render_report(ticker: str, final_state: dict, settings: dict | None, parts) 
         body.append("</section>")
 
     page_title = " ".join(x for x in (ticker, date, rating) if x)
+    name = brand()
+    masthead_brand = f'<p class="logo">{escape(name)}</p>\n' if name else ""
+    footer = f'<footer class="credit">{escape(name)}</footer>\n' if name else ""
     return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-<title>{escape(page_title)}: TradingAgents report</title>
+<title>{escape(page_title)}: {escape(brand() or "Research")} report</title>
 <style>{_CSS}</style>
 </head>
 <body>
 <div class="page" id="top">
 <header class="masthead">
-<a class="logo" href="{_COMPANY}" rel="noopener" aria-label="Tauric Research">{_LOGO}</a>
-<h1>{title}</h1>
+{masthead_brand}<h1>{title}</h1>
 <p class="date">{escape(f"Analysis of {date}" if date else "Analysis")}</p>
 <dl class="run">{details}</dl>
 </header>
@@ -299,8 +295,7 @@ def render_report(ticker: str, final_state: dict, settings: dict | None, parts) 
 <main>
 {"".join(body)}
 </main>
-<footer class="credit"><a href="{_PROJECT}" rel="noopener">TradingAgents</a> powered by <a class="brand" href="{_ORG}" rel="noopener">Tauric Research</a></footer>
-</div>
+{footer}</div>
 <a class="to-top" href="#top">Top</a>
 </body>
 </html>

@@ -15,6 +15,7 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
+from tradingagents.branding import display_name
 from tradingagents.graph.analyst_execution import (
     ANALYST_NODE_SPECS,
     AnalystExecutionPlan,
@@ -184,9 +185,8 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
     # Header with welcome message
     layout["header"].update(
         Panel(
-            "[bold green]Welcome to TradingAgents CLI[/bold green]\n"
-            "[dim]© [Tauric Research](https://github.com/TauricResearch)[/dim]",
-            title="Welcome to TradingAgents",
+            f"[bold green]{display_name()}[/bold green]",
+            title=display_name(),
             border_style="green",
             padding=(1, 2),
             expand=True,

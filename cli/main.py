@@ -27,8 +27,8 @@ else:
     _NO_CONSOLE_ERRORS = ()
 
 app = typer.Typer(
-    name="TradingAgents",
-    help="TradingAgents CLI: Multi-Agents LLM Financial Trading Framework",
+    name="trade",
+    help="Multi-agent market research from the terminal",
     add_completion=True,  # Enable shell completion
 )
 
