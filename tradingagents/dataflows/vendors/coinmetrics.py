@@ -34,7 +34,7 @@ METRICS = {
     "AdrActCnt": ("Active addresses", "network usage; rising = more participants"),
     "TxCnt": ("Transactions", "network usage"),
     "FeeTotNtv": ("Total fees (native units)", "demand for block space"),
-    "HashRate": ("Hash rate", "miner commitment / security (PoW coins only)"),
+    "HashRate": ("Hash rate (TH/s)", "miner commitment / security (PoW coins only)"),
     "CapMVRVCur": ("MVRV ratio", "market value / realized value; >3 historically frothy, <1 historically cheap"),
     "SplyExNtv": ("Supply held on exchanges (native)", "falling = coins leaving exchanges (holding)"),
     "FlowInExNtv": ("Exchange inflow (native)", "coins sent to exchanges; often sell-side"),
