@@ -289,3 +289,56 @@ def get_prediction_markets(
         str: A formatted markdown report of matching prediction markets
     """
     return route_to_vendor("get_prediction_markets", topic, limit, trade_date or None)
+
+
+_CRYPTO_WINDOW = Annotated[
+    int | None, "Trailing window length in days; omit for the default"
+]
+
+
+@tool
+def get_onchain_metrics(
+    symbol: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "Current date in yyyy-mm-dd format; the end of the window"],
+    look_back_days: _CRYPTO_WINDOW = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve on-chain activity for the crypto asset under analysis (Coin Metrics):
+    active addresses, transactions, fees, hash rate, MVRV, supply on exchanges,
+    and exchange inflows/outflows, with 7-day and window changes. Daily data,
+    default 30-day window. Uses the configured onchain_data vendor.
+    """
+    return route_to_vendor("get_onchain_metrics", symbol, as_of(curr_date, trade_date), look_back_days)
+
+
+@tool
+def get_derivatives_data(
+    symbol: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "Current date in yyyy-mm-dd format; the end of the window"],
+    look_back_days: _CRYPTO_WINDOW = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve perpetual-futures positioning for the crypto asset under analysis
+    (Hyperliquid): funding-rate history (latest, 24h, 7d and window averages,
+    annualized) and, on a live run, open interest, 24h volume and perp premium.
+    Default 14-day window. Uses the configured derivatives_data vendor.
+    """
+    return route_to_vendor("get_derivatives_data", symbol, as_of(curr_date, trade_date), look_back_days)
+
+
+@tool
+def get_etf_flows(
+    symbol: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "Current date in yyyy-mm-dd format; the end of the window"],
+    look_back_days: _CRYPTO_WINDOW = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve daily U.S. spot-ETF net flows for the crypto asset under analysis
+    (BTC, ETH, SOL, XRP): latest day, streak, 5-day and window totals, and the
+    largest ETF movers. Default 14 trading days. Uses the configured etf_flows
+    vendor; reports unavailable when no key is configured.
+    """
+    return route_to_vendor("get_etf_flows", symbol, as_of(curr_date, trade_date), look_back_days)

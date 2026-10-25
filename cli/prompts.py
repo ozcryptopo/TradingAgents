@@ -138,13 +138,21 @@ def detect_asset_type(ticker: str) -> AssetType:
 def filter_analysts_for_asset_type(
     analysts: list[AnalystType], asset_type: AssetType
 ) -> list[AnalystType]:
-    if asset_type != AssetType.CRYPTO:
-        return analysts
-    return [
-        analyst
-        for analyst in analysts
-        if analyst != AnalystType.FUNDAMENTALS
-    ]
+    """The analysts that can run for ``asset_type``.
+
+    Every analyst runs for both kinds now: for crypto the fundamentals analyst
+    reads on-chain activity, derivatives positioning and ETF flows instead of
+    financial statements. Kept as the one place a future asset type would
+    narrow the list.
+    """
+    return list(analysts)
+
+
+def _analyst_label(display: str, analyst: AnalystType, asset_type: AssetType) -> str:
+    """The menu label, naming what the fundamentals analyst reads for crypto."""
+    if asset_type == AssetType.CRYPTO and analyst == AnalystType.FUNDAMENTALS:
+        return f"{display} (on-chain, funding, ETF flows)"
+    return display
 
 
 def _matching_choice(options, default):
@@ -164,7 +172,11 @@ def select_analysts(asset_type: AssetType = AssetType.STOCK, default=None) -> li
     choices = questionary.checkbox(
         "Select Your [Analysts Team]:",
         choices=[
-            questionary.Choice(display, value=value, checked=value.value in (default or []))
+            questionary.Choice(
+                _analyst_label(display, value, asset_type),
+                value=value,
+                checked=value.value in (default or []),
+            )
             for display, value in ANALYST_CHOICES
             if value in available_analysts
         ],

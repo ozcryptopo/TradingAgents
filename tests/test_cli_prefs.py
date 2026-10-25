@@ -71,9 +71,10 @@ def test_an_unknown_provider_drops_itself_and_its_models():
 
 
 @pytest.mark.unit
-def test_analysts_are_narrowed_to_the_asset_type():
+def test_saved_analysts_carry_over_to_crypto():
+    """Crypto runs every analyst; fundamentals reads on-chain and flow data."""
     kept = sanitize(SAVED, "crypto")
-    assert AnalystType.FUNDAMENTALS.value not in kept["analysts"]
+    assert AnalystType.FUNDAMENTALS.value in kept["analysts"]
     assert AnalystType.MARKET.value in kept["analysts"]
 
 

@@ -164,6 +164,10 @@ def build_default_config() -> dict:
             "news_data": "yfinance",             # Options: alpha_vantage, yfinance
             "macro_data": "fred",                # Options: fred (needs FRED_API_KEY)
             "prediction_markets": "polymarket",  # Options: polymarket (keyless)
+            # Crypto-only enrichment, used by the crypto fundamentals analyst.
+            "onchain_data": "coinmetrics",       # Options: coinmetrics (keyless community API)
+            "derivatives_data": "hyperliquid",   # Options: hyperliquid (keyless)
+            "etf_flows": "coinglass",            # Options: coinglass (needs COINGLASS_API_KEY)
         },
         # Tool-level configuration (takes precedence over category-level)
         "tool_vendors": {

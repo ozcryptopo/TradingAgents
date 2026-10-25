@@ -17,7 +17,14 @@ from tradingagents.dataflows.vendors.alpha_vantage import (
     get_news as get_alpha_vantage_news,
     get_stock as get_alpha_vantage_stock,
 )
+from tradingagents.dataflows.vendors.coinglass import get_etf_flows as get_coinglass_etf_flows
+from tradingagents.dataflows.vendors.coinmetrics import (
+    get_onchain_metrics as get_coinmetrics_onchain,
+)
 from tradingagents.dataflows.vendors.fred import get_macro_data as get_fred_macro_data
+from tradingagents.dataflows.vendors.hyperliquid import (
+    get_derivatives_data as get_hyperliquid_derivatives,
+)
 from tradingagents.dataflows.vendors.polymarket import (
     get_prediction_markets as get_polymarket_prediction_markets,
 )
@@ -83,7 +90,19 @@ TOOLS_CATEGORIES = {
         "tools": [
             "get_prediction_markets",
         ]
-    }
+    },
+    "onchain_data": {
+        "description": "Crypto on-chain activity (addresses, hash rate, MVRV, exchange flows)",
+        "tools": ["get_onchain_metrics"],
+    },
+    "derivatives_data": {
+        "description": "Crypto perpetual futures funding rates and open interest",
+        "tools": ["get_derivatives_data"],
+    },
+    "etf_flows": {
+        "description": "U.S. spot crypto ETF daily net flows",
+        "tools": ["get_etf_flows"],
+    },
 }
 
 # Optional enrichment categories. These add macro/event context to the news
@@ -91,7 +110,13 @@ TOOLS_CATEGORIES = {
 # sentinel instead of aborting the run (a bad LLM-supplied indicator, a missing
 # key, or a network blip should not crash an analysis over flavour data). Core
 # categories (prices, fundamentals, news) still raise so a broken primary is loud.
-OPTIONAL_CATEGORIES = {"macro_data", "prediction_markets"}
+OPTIONAL_CATEGORIES = {
+    "macro_data",
+    "prediction_markets",
+    "onchain_data",
+    "derivatives_data",
+    "etf_flows",
+}
 
 # Mapping of methods to their vendor-specific implementations
 VENDOR_METHODS = {
@@ -145,6 +170,16 @@ VENDOR_METHODS = {
     # prediction_markets
     "get_prediction_markets": {
         "polymarket": get_polymarket_prediction_markets,
+    },
+    # crypto enrichment
+    "get_onchain_metrics": {
+        "coinmetrics": get_coinmetrics_onchain,
+    },
+    "get_derivatives_data": {
+        "hyperliquid": get_hyperliquid_derivatives,
+    },
+    "get_etf_flows": {
+        "coinglass": get_coinglass_etf_flows,
     },
 }
 
