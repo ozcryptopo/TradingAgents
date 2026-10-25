@@ -39,6 +39,11 @@ from tradingagents.dataflows.vendors.sec_edgar import (
 logger = logging.getLogger(__name__)
 
 DEFAULT_TOP = 10
+# Net income labels some filers use instead of NetIncomeLoss (e.g. Broadcom).
+NET_INCOME_FALLBACKS = (
+    "NetIncomeLossAvailableToCommonStockholdersBasic",
+    "ProfitLoss",
+)
 KEPT_HOLDINGS = 50
 EQUITY_CATEGORIES = {"EC", "EP"}  # common and preferred equity
 
@@ -48,8 +53,13 @@ _SUFFIXES = re.compile(
 )
 
 
+# SEC titles carry a state-of-incorporation tag, e.g. "APPLIED MATERIALS INC /DE".
+_STATE_TAG = re.compile(r"\s*/[A-Z]{2,3}/?\s*$")
+
+
 def _normalise(name: str) -> str:
-    cleaned = re.sub(r"[^A-Z0-9 ]", " ", name.upper().replace("&", " AND "))
+    name = _STATE_TAG.sub("", name.upper().strip())
+    cleaned = re.sub(r"[^A-Z0-9 ]", " ", name.replace("&", " AND "))
     return " ".join(_SUFFIXES.sub(" ", cleaned).split())
 
 
@@ -169,7 +179,8 @@ def _metrics(cik: str, as_of_date: str) -> dict | None:
             out["revenue_growth_yoy"] = (value - year_ago[0]) / abs(year_ago[0])
 
     fy_revenue = _latest(_as_of(gaap, revenue_tags, as_of_date, annual, _ANNUAL_FORMS)[0])
-    fy_net = _latest(_as_of(gaap, _tags("income_statement", "Net Income"), as_of_date, annual, _ANNUAL_FORMS)[0])
+    fy_net = _latest(_as_of(gaap, _tags("income_statement", "Net Income") + NET_INCOME_FALLBACKS,
+                            as_of_date, annual, _ANNUAL_FORMS)[0])
     fy_op = _latest(_as_of(gaap, _tags("income_statement", "Operating Income"), as_of_date, annual, _ANNUAL_FORMS)[0])
     fy_ocf = _latest(_as_of(gaap, _tags("cashflow", "Operating Cash Flow"), as_of_date, annual, _ANNUAL_FORMS)[0])
     fy_capex = _latest(_as_of(gaap, _tags("cashflow", "Capital Expenditure"), as_of_date, annual, _ANNUAL_FORMS)[0])
@@ -184,8 +195,17 @@ def _metrics(cik: str, as_of_date: str) -> dict | None:
             capex = fy_capex[1] if fy_capex and fy_capex[0] == fy_revenue[0] else 0.0
             out["fcf_margin"] = (fy_ocf[1] - capex) / fy_revenue[1]
 
+    equity_tags = _tags("balance_sheet", "Stockholders Equity")
     liabilities = _latest(_as_of(gaap, _tags("balance_sheet", "Total Liabilities"), as_of_date, quarterly)[0])
-    equity = _latest(_as_of(gaap, _tags("balance_sheet", "Stockholders Equity"), as_of_date, quarterly)[0])
+    equity = _latest(_as_of(gaap, equity_tags, as_of_date, quarterly)[0])
+    if equity and (not liabilities or liabilities[0] != equity[0]):
+        # Many filers (AMD, Intel) never tag a total-liabilities line; derive it
+        # from total liabilities-and-equity less total equity at the same date.
+        total = _as_of(gaap, ("LiabilitiesAndStockholdersEquity",), as_of_date, quarterly)[0]
+        whole_equity = _as_of(gaap, (equity_tags[-1], equity_tags[0]), as_of_date, quarterly)[0]
+        key = next((k for k in total if k[0] == equity[0]), None)
+        if key is not None and key in whole_equity:
+            liabilities = (equity[0], total[key] - whole_equity[key])
     if liabilities and equity and equity[1] > 0 and liabilities[0] == equity[0]:
         out["liabilities_to_equity"] = liabilities[1] / equity[1]
     return out or None

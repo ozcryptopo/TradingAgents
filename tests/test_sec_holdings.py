@@ -143,3 +143,25 @@ def test_name_normalisation_matches_sec_titles():
 def test_routed(sec):
     out = router.route_to_vendor("get_etf_holdings_fundamentals", "SMH", "2026-10-25", None)
     assert "top holdings and their financials" in out
+
+
+@pytest.mark.unit
+def test_state_of_incorporation_tag_is_ignored():
+    assert sec_holdings._normalise("APPLIED MATERIALS INC /DE") == sec_holdings._normalise("Applied Materials Inc")
+    assert sec_holdings._normalise("KLA CORP /DE/") == sec_holdings._normalise("KLA Corp")
+
+
+@pytest.mark.unit
+def test_liabilities_derived_when_not_tagged_and_net_income_fallback(tmp_path):
+    usd = lambda *facts: {"units": {"USD": list(facts)}}  # noqa: E731
+    facts = {"facts": {"us-gaap": {
+        "Revenues": usd(_fact("2025-12-31", 100e9, "2025-01-01", form="10-K", filed="2026-02-01")),
+        "NetIncomeLossAvailableToCommonStockholdersBasic": usd(
+            _fact("2025-12-31", 20e9, "2025-01-01", form="10-K", filed="2026-02-01")),
+        "LiabilitiesAndStockholdersEquity": usd(_fact("2026-03-31", 150e9, filed="2026-05-01")),
+        "StockholdersEquity": usd(_fact("2026-03-31", 100e9, filed="2026-05-01")),
+    }}}
+    with mock.patch.object(sec_holdings, "_cached_json", return_value=facts):
+        m = sec_holdings._metrics("0000000001", "2026-10-25")
+    assert m["net_margin"] == pytest.approx(0.2)
+    assert m["liabilities_to_equity"] == pytest.approx(0.5)   # (150 - 100) / 100
