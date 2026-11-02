@@ -5,6 +5,7 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage
 
 from tradingagents.agents.context import (
+    get_analyst_evidence_from_state,
     get_instrument_context_from_state,
     get_language_instruction,
     get_portfolio_context_from_state,
@@ -42,6 +43,17 @@ def create_trader(llm):
         else:
             grounding = ""
             report_section = ""
+
+        # Fundamentals / news / sentiment carry the on-chain, funding, ETF-flow,
+        # COT and macro data. Without them the Trader discarded those figures as
+        # "not present in the technical report I was given".
+        evidence = get_analyst_evidence_from_state(state, skip=("market_report",))
+        if evidence:
+            grounding += (
+                "Use the fundamentals, news and sentiment reports as data-backed "
+                "evidence for direction, conviction and sizing. "
+            )
+            report_section += f"Other Analyst Reports:\n{evidence}\n\n"
 
         messages = [
             {

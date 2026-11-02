@@ -256,7 +256,11 @@ class PortfolioDecision(BaseModel):
     )
     time_horizon: str | None = Field(
         default=None,
-        description="Optional recommended holding period, e.g. '3-6 months'.",
+        description=(
+            "Optional recommended holding period as a short label of at most "
+            "40 characters, e.g. '3-6 months' or '1-3 months'. Put any "
+            "conditions or re-evaluation notes in the executive summary, not here."
+        ),
     )
 
     @field_validator("price_target", mode="before")

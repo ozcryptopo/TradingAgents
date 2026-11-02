@@ -69,6 +69,24 @@ def _logo_tag() -> str:
     return f'<img class="logo" src="data:{kind};base64,{data}" alt="">'
 
 
+def short_horizon(text: str, limit: int = 40) -> str:
+    """A horizon short enough for the cover tile, cut at a clean boundary.
+
+    The model sometimes writes a sentence here ("1-3 months (4-8 weeks), with
+    the failed-rally short treated as ..."), which a fixed character cut left
+    ending mid-word. Keep the lead phrase before any parenthesis, comma or
+    semicolon; failing that, cut on a word boundary and add an ellipsis.
+    """
+    text = " ".join((text or "").split())
+    if len(text) <= limit:
+        return text
+    lead = re.split(r"\s*[(,;]|\s+[-–—]\s+", text, maxsplit=1)[0].strip()
+    if 0 < len(lead) <= limit:
+        return lead
+    cut = text[:limit].rsplit(" ", 1)[0].rstrip(" ,;:-(")
+    return f"{cut}…"
+
+
 def decision_fields(text: str) -> dict[str, str]:
     """Rating, summary, thesis, target and horizon from the Portfolio Manager's text."""
     fields = {}
@@ -222,6 +240,7 @@ def render_pdf_html(ticker: str, final_state: dict, settings: dict | None, parts
     horizon = fields.get("Time Horizon", "") or "Not provided"
     if horizon.lower().startswith("not provided"):
         horizon = "Not provided"
+    horizon = short_horizon(horizon)
     date = final_state.get("trade_date", "") or ""
     asset = "Crypto asset" if final_state.get("asset_type") == "crypto" else "Equity"
     generated = datetime.now().strftime("%B %-d, %Y" if sys.platform != "win32" else "%B %d, %Y")
@@ -240,7 +259,7 @@ def render_pdf_html(ticker: str, final_state: dict, settings: dict | None, parts
   <div class="tiles">
     <div class="tile"><div class="label">Rating</div><div class="value rating">{escape(rating or 'Review')}</div></div>
     <div class="tile"><div class="label">Price target</div><div class="value">{escape(target)}</div></div>
-    <div class="tile"><div class="label">Time horizon</div><div class="value" style="font-size:11pt;line-height:1.3">{escape(horizon[:90])}</div></div>
+    <div class="tile"><div class="label">Time horizon</div><div class="value" style="font-size:11pt;line-height:1.3">{escape(horizon)}</div></div>
   </div>
   <div class="cover-notice">{notice}</div>
   <div class="foot"><span>Prepared {escape(generated)}{f' · {contact}' if contact else ''}</span><span>AI-generated research · Not investment advice</span></div>
@@ -261,7 +280,7 @@ def render_pdf_html(ticker: str, final_state: dict, settings: dict | None, parts
   <div class="facts">
     <div><div class="label">Rating</div><div class="value rating">{escape(rating or 'Review')}</div></div>
     <div><div class="label">Price target</div><div class="value">{escape(target)}</div></div>
-    <div><div class="label">Horizon</div><div class="value" style="font-size:9pt;line-height:1.3">{escape(horizon[:90])}</div></div>
+    <div><div class="label">Horizon</div><div class="value" style="font-size:9pt;line-height:1.3">{escape(horizon)}</div></div>
     <div><div class="label">Analysis date</div><div class="value">{escape(date)}</div></div>
   </div>
   {f'<div class="callout"><h3>Executive summary</h3><div class="prose">{md.render(summary)}</div></div>' if summary else ''}

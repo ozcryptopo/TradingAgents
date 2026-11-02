@@ -201,6 +201,46 @@ def report_or_absent(text: str, source: str) -> str:
     return f"(No {source} report in this run: it is not available, not an empty finding.)"
 
 
+_EVIDENCE_REPORTS = (
+    ("market_report", "market", "Technical Market Report"),
+    ("fundamentals_report", "fundamentals", "Fundamentals Report"),
+    ("news_report", "news", "News Report"),
+    ("sentiment_report", "sentiment", "Sentiment Report"),
+)
+
+EVIDENCE_NOTE = (
+    "The analyst reports below were written from data-tool calls made in this run "
+    "(price and indicators; on-chain, derivatives and ETF-flow feeds; CFTC "
+    "positioning; macro series; news and social feeds). Figures an analyst "
+    "attributes to a tool are supplied data, not unverified assertions: weigh "
+    "them as evidence. Treat as unverified only what a report itself labels as "
+    "an estimate, a rumor or an unconfirmed claim."
+)
+
+
+def get_analyst_evidence_from_state(
+    state: Mapping[str, Any], skip: tuple[str, ...] = ()
+) -> str:
+    """The analysts' data-backed reports, labelled, for a downstream decision agent.
+
+    The Trader and Portfolio Manager used to see only the research plan (and the
+    Trader the market report), so figures from the fundamentals and news tools
+    reached them second-hand through the debate and were set aside as
+    unverifiable. Giving them the source reports lets them weigh that data.
+    Reports whose analyst was not selected are left out rather than marked.
+    """
+    sections = []
+    for key, _source, label in _EVIDENCE_REPORTS:
+        if key in skip:
+            continue
+        text = (state.get(key) or "").strip()
+        if text:
+            sections.append(f"### {label}\n{text}")
+    if not sections:
+        return ""
+    return EVIDENCE_NOTE + "\n\n" + "\n\n".join(sections)
+
+
 def get_portfolio_context_from_state(state: Mapping[str, Any]) -> str:
     """Return the caller's portfolio block, or a notice that none was given.
 

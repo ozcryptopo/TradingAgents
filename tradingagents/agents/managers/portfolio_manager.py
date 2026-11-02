@@ -11,6 +11,7 @@ free-text generation and the rating is read from that text.
 from __future__ import annotations
 
 from tradingagents.agents.context import (
+    get_analyst_evidence_from_state,
     get_instrument_context_from_state,
     get_language_instruction,
     get_portfolio_context_from_state,
@@ -39,12 +40,21 @@ def create_portfolio_manager(llm):
             else ""
         )
 
+        # Without the source reports the PM judged every non-price figure in the
+        # debate "not verifiable from any data series supplied here" and
+        # decided on the chart alone, discarding the on-chain / ETF / COT data.
+        evidence = get_analyst_evidence_from_state(state)
+        evidence_block = f"**Analyst Reports (source data):**\n{evidence}\n\n---\n" if evidence else ""
+
         prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
 {instrument_context}
 
 {portfolio_context}
 
+---
+
+{evidence_block}
 ---
 
 **Rating Scale** (use exactly one):
@@ -63,7 +73,7 @@ def create_portfolio_manager(llm):
 
 ---
 
-Ground every conclusion in specific evidence from the analysts. The risk debate always contains conflicting stances; deciding which is stronger is the job, so conflict alone is not a reason to Hold. Commit to the stronger case, sized by how decisively it wins. Choose Hold only when the evidence is still balanced after that weighing, or too thin to support a call; do not force a direction to appear decisive. Weigh the analysts on their merits, independent of speaking order.
+Ground every conclusion in specific evidence from the analysts. A figure the debate cites can be checked against the analyst reports above: when it matches, treat it as data, not debate color. The risk debate always contains conflicting stances; deciding which is stronger is the job, so conflict alone is not a reason to Hold. Commit to the stronger case, sized by how decisively it wins. Choose Hold only when the evidence is still balanced after that weighing, or too thin to support a call; do not force a direction to appear decisive. Weigh the analysts on their merits, independent of speaking order.
 
 ## Output
 
