@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orders · BLMI admin</title><meta name="robots" content="noindex">
+<link rel="icon" href="/static/blmi-icon.png">
+<style>
+body{margin:0;font:14px/1.5 Inter,system-ui,sans-serif;color:#111827;background:#f6f7f9}
+header{background:#0b1e3f;color:#fff;padding:14px 22px;display:flex;justify-content:space-between;align-items:center}
+header b{color:#ffd166}
+main{padding:20px}
+.stats{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.stat{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 16px}.stat b{font-size:20px;display:block}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}
+th{background:#0b1e3f;color:#fff;text-align:left;padding:8px 10px;font-weight:600}
+td{padding:8px 10px;border-top:1px solid #e5e7eb;vertical-align:top}
+.st{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:#e5e7eb}
+.delivered{background:#d1fae5;color:#065f46}.held{background:#fef3c7;color:#92400e}.running,.queued{background:#dbeafe;color:#1e40af}
+.failed,.refunded{background:#fee2e2;color:#991b1b}
+button{border:1px solid #d1d5db;background:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;margin:2px}
+button.p{background:#f4811e;color:#fff;border-color:#f4811e}
+details{max-width:460px}pre{white-space:pre-wrap;font-size:12px;background:#f6f7f9;padding:8px;border-radius:6px;max-height:300px;overflow:auto}
+</style>
+</head>
+<body>
+<header><div><b>BrightLaunch</b> Market Intelligence · Orders</div><button onclick="load()">Refresh</button></header>
+<main>
+<div class="stats" id="stats"></div>
+<table><thead><tr><th>Created</th><th>Symbol</th><th>Tier</th><th>Customer</th><th>Status</th><th>Quality check</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table>
+</main>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function act(id,a){if(!confirm(`${a} this order?`))return;const r=await fetch(`/admin/api/orders/${id}/${a}`,{method:'POST'});if(!r.ok)alert((await r.json()).detail);load();}
+async function load(){
+  const rows=await fetch('/admin/api/orders').then(r=>r.json());
+  const paid=rows.filter(r=>!['pending_payment','expired'].includes(r.status));
+  const revenue=rows.filter(r=>['delivered','held','running','queued'].includes(r.status)).reduce((a,r)=>a+r.amount_cents,0)/100;
+  const count=s=>rows.filter(r=>r.status===s).length;
+  document.getElementById('stats').innerHTML=[['Paid orders',paid.length],['Revenue (excl. refunds)','$'+revenue.toFixed(2)],['Delivered',count('delivered')],['Held for review',count('held')],['In progress',count('queued')+count('running')],['Refunded',count('refunded')]].map(([k,v])=>`<div class="stat"><b>${v}</b>${k}</div>`).join('');
+  document.getElementById('rows').innerHTML=rows.map(r=>{
+    const qc=r.qc_report?`<details><summary>${r.qc_report.passed?'Passed':'Issues'} · ${r.qc_report.fix_rounds||0} fix rounds</summary><pre>${esc(JSON.stringify(r.qc_report.issues,null,2))}</pre></details>`:'';
+    const err=r.error?`<details><summary>Error</summary><pre>${esc(r.error)}</pre></details>`:'';
+    const acts=[r.pdf_path?`<a href="/admin/api/orders/${r.id}/pdf" target="_blank"><button>View PDF</button></a>`:'',
+      r.status==='held'?`<button class="p" onclick="act('${r.id}','release')">Send to customer</button>`:'',
+      ['held','failed'].includes(r.status)?`<button onclick="act('${r.id}','rerun')">Re-run</button>`:'',
+      ['held','failed','queued'].includes(r.status)?`<button onclick="act('${r.id}','refund')">Refund</button>`:''].join('');
+    return `<tr><td>${esc(new Date(r.created_at).toLocaleString())}</td><td><b>${esc(r.ticker)}</b></td><td>${esc(r.tier)} · $${(r.amount_cents/100).toFixed(0)}</td><td>${esc(r.email)}</td><td><span class="st ${esc(r.status)}">${esc(r.status)}</span><div style="color:#6b7280;font-size:12px">${esc(r.stage||'')}</div></td><td>${qc}${err}</td><td>${acts}</td></tr>`;}).join('');
+}
+load();setInterval(load,30000);
+</script>
+</body>
+</html>

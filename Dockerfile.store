@@ -1,0 +1,24 @@
+# BLMI report store: one image, two Railway services.
+#   web:    ROLE=web     (storefront, checkout, webhook, downloads, admin)
+#   worker: ROLE=worker  (runs reports; needs Chromium for the PDF)
+#   or one service with ROLE=all
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    REPORT_PDF_BROWSER=/usr/bin/chromium REPORT_PDF_NO_SANDBOX=1 \
+    TRADINGAGENTS_HOME=/home/appuser/.tradingagents
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends chromium fonts-inter fonts-dejavu-core fonts-noto-color-emoji ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . .
+RUN pip install --no-cache-dir ".[store]"
+
+RUN useradd --create-home appuser && mkdir -p /data && chown -R appuser /app /data
+USER appuser
+
+ENV PORT=8000
+# ROLE=web | worker | all (all = website and worker in one service, simplest setup)
+CMD ["sh", "-c", "case \"$ROLE\" in worker) exec python -m blmi_store.worker ;; all) python -m blmi_store.worker & exec uvicorn blmi_store.web:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*' ;; *) exec uvicorn blmi_store.web:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*' ;; esac"]

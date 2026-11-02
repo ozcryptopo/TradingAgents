@@ -25,9 +25,38 @@ TOP_NOTICE = (
 )
 
 
-def full_disclosures() -> list[tuple[str, str]]:
-    """(heading, text) pairs for the end of a report."""
+EDUCATIONAL_NOTICE = (
+    "FOR EDUCATIONAL PURPOSES ONLY. NOT INVESTMENT ADVICE. This report is AI-generated research describing "
+    "current market conditions for educational purposes. It is not a recommendation or offer to buy, sell or "
+    "hold any security, digital asset or other instrument, and it does not consider your personal financial "
+    "situation. It contains no ratings, price targets or trading instructions. Do your own "
+    "research and consult a licensed financial professional before making any investment decision."
+)
+
+
+def full_disclosures(edition: str | None = None) -> list[tuple[str, str]]:
+    """(heading, text) pairs for the end of a report.
+
+    The ``educational`` edition adds a section on hypothetical model outputs and
+    states the educational purpose up front.
+    """
     who = publisher()
+    items = _base_disclosures(who)
+    if edition == "educational":
+        items[0] = ("Educational purpose; not investment advice",
+                    "This report is provided for informational and educational purposes only, to explain current "
+                    "market conditions. " + items[0][1].split(". ", 1)[1])
+        items = [(h, t.replace(" Ratings, price targets, levels and trade plans are hypothetical model outputs, "
+                               "not predictions or guarantees.", "")) for h, t in items]
+        items.insert(2, ("Facts only",
+                         "This report describes market conditions. It contains no buy, sell or hold ratings, price "
+                         "targets, entry or exit points, position sizes or other recommendations. Price levels it "
+                         "mentions describe what the data shows; they are not predictions, signals or instructions, "
+                         "and no reader should act on them."))
+    return items
+
+
+def _base_disclosures(who: str) -> list[tuple[str, str]]:
     return [
         ("Not investment advice",
          "This report is provided for informational and educational purposes only. It does not constitute "

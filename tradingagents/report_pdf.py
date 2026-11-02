@@ -31,7 +31,7 @@ from pathlib import Path
 
 from tradingagents.agents.rating import run_rating
 from tradingagents.branding import brand
-from tradingagents.disclaimer import TOP_NOTICE, full_disclosures
+from tradingagents.disclaimer import EDUCATIONAL_NOTICE, TOP_NOTICE, full_disclosures
 from tradingagents.report_html import _CATEGORY, _markdown, _render_agent_text
 from tradingagents.reporting import analyst_names
 
@@ -111,13 +111,15 @@ def _clean_target(value: str) -> str:
         return value[:40]
 
 
-def _css(primary: str, accent: str, highlight: str, name: str, ticker: str) -> str:
-    running = escape(f"{name + ' · ' if name else ''}{ticker} Research Report").replace('"', "'")
+def _css(primary: str, accent: str, highlight: str, name: str, ticker: str, educational: bool = False) -> str:
+    kind = "Market Conditions Report" if educational else "Research Report"
+    running = escape(f"{name + ' · ' if name else ''}{ticker} {kind}").replace('"', "'")
+    right = "Educational research only · Not investment advice" if educational else "AI-generated research · Not investment advice"
     return f"""
 @page {{
   size: Letter; margin: 0.85in 0.8in 0.85in 0.8in;
   @top-left {{ content: "{running}"; font: 600 8pt -apple-system, Helvetica, Arial, sans-serif; color: #6b7280; }}
-  @top-right {{ content: "AI-generated research · Not investment advice"; font: 8pt -apple-system, Helvetica, Arial, sans-serif; color: #9ca3af; }}
+  @top-right {{ content: "{right}"; font: 8pt -apple-system, Helvetica, Arial, sans-serif; color: #9ca3af; }}
   @bottom-right {{ content: "Page " counter(page) " of " counter(pages); font: 8pt -apple-system, Helvetica, Arial, sans-serif; color: #6b7280; }}
 }}
 @page cover {{ margin: 0; @top-left {{ content: none; }} @top-right {{ content: none; }} @bottom-right {{ content: none; }} }}
@@ -139,7 +141,7 @@ h1, h2, h3, h4 {{ font-family: var(--display); }}
 .cover::before {{ right: -1.15in; top: -1.15in; width: 3.5in; height: 3.5in; border: 0.03in solid var(--highlight); }}
 .cover .band {{ position: absolute; left: 0; bottom: 0; width: 100%; height: 0.22in;
   background: linear-gradient(90deg, var(--accent), var(--highlight)); }}
-.cover .logo {{ max-height: 0.7in; max-width: 2.6in; margin-bottom: 0.25in; }}
+.cover .logo {{ max-height: 1.25in; max-width: 2.6in; margin-bottom: 0.2in; border-radius: 10px; }}
 .cover .brand {{ font: 700 11pt var(--display); letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--highlight); }}
 .cover .kind {{ margin-top: 2.1in; font: 600 10pt var(--text); letter-spacing: 0.18em;
@@ -216,6 +218,16 @@ tbody tr:nth-child(even) td {{ background: var(--wash); }}
 .back dt {{ color: var(--muted); }}
 .back dd {{ margin: 0; }}
 .back p, .back li {{ font-size: 8.5pt; color: #374151; }}
+
+/* Educational edition: About this report */
+.about {{ break-after: page; }}
+.about h2 {{ margin: 0.04in 0 0.14in; font-size: 22pt; color: var(--primary); border-bottom: 3px solid var(--accent); padding-bottom: 0.06in; }}
+.about h3 {{ font-size: 11pt; color: var(--primary); margin: 0.18in 0 0.04in; }}
+.about p, .about li {{ font-size: 9.2pt; }}
+.edu-box {{ margin: 0 0 0.12in; padding: 0.12in 0.16in; border: 1px solid var(--highlight); border-left: 5px solid var(--accent);
+  border-radius: 4px; background: #fff8e6; font-size: 8.6pt; line-height: 1.5; }}
+.edu-box strong {{ color: #991b1b; }}
+.cover .tile .note {{ margin-top: 0.04in; font-size: 7pt; color: rgba(255,255,255,0.62); line-height: 1.3; }}
 """
 
 
@@ -248,6 +260,15 @@ def render_pdf_html(ticker: str, final_state: dict, settings: dict | None, parts
     notice = f"<strong>{escape(head)}.</strong> {escape(rest)}"
     summary = fields.get("Executive Summary", "")
     thesis = fields.get("Investment Thesis", "")
+    educational = (settings or {}).get("edition") == "educational"
+    notes = (settings or {}).get("report_notes") or {}
+    if educational:
+        first, second, rest = EDUCATIONAL_NOTICE.split(". ", 2)
+        notice = f"<strong>{escape(first)}. {escape(second)}.</strong> {escape(rest)}"
+
+    if educational:
+        return _render_educational(ticker, final_state, settings, parts, md, name, primary, accent, highlight,
+                                   contact, rating, tone, date, asset, generated, notice, summary, thesis, notes)
 
     cover = f"""
 <div class="cover" style="--tone:{tone}">
@@ -338,6 +359,131 @@ def render_pdf_html(ticker: str, final_state: dict, settings: dict | None, parts
 """
 
 
+def _method_rows(settings: dict | None) -> str:
+    method = []
+    if settings:
+        s = settings.get
+        for tier in ("deep", "quick"):
+            provider = s(f"{tier}_think_provider") or s("llm_provider", "?")
+            method.append((f"{tier.capitalize()}-thinking model", f"{provider} · {s(f'{tier}_think_llm', '?')}"))
+        method.append(("Analysts", ", ".join(analyst_names(s("analysts")))))
+        method.append(("Debate rounds", f"research {s('max_debate_rounds', '?')}, risk {s('max_risk_discuss_rounds', '?')}"))
+        vendors = {**(s("data_vendors") or {}), **(s("tool_vendors") or {})}
+        for key, chain in vendors.items():
+            method.append((f"Data: {_CATEGORY.get(key, key)}", _vendor_text(chain)))
+    return "".join(f"<dt>{escape(k)}</dt><dd>{escape(str(v))}</dd>" for k, v in method)
+
+
+def _render_educational(ticker, final_state, settings, parts, md, name, primary, accent, highlight, contact,
+                        rating, tone, date, asset, generated, notice, summary, thesis, notes) -> str:
+    """The educational edition: market conditions, framed as education, no price target or instructions.
+
+    ``settings["report_notes"]`` may carry ``price_label`` / ``price_value`` (the
+    price shown on the cover), ``timing_note`` (when the data was taken) and
+    ``gaps`` (data that was unavailable in this run).
+    """
+    kind = "Crypto" if final_state.get("asset_type") == "crypto" else "Equity"
+    price_label = notes.get("price_label") or "Price"
+    price_value = notes.get("price_value") or "n/a"
+    price_note = notes.get("price_note") or ""
+    gaps = [g for g in (notes.get("gaps") or []) if g]
+    trend_label = notes.get("trend_label") or "Long-term trend"
+    trend_value = notes.get("trend_value") or "n/a"
+    trend_note = notes.get("trend_note") or ""
+    summary = notes.get("summary") or ""
+    timing = notes.get("timing_note") or ""
+    cover = f"""
+<div class="cover" style="--tone:{tone}">
+  {_logo_tag()}
+  {f'<div class="brand">{escape(name)}</div>' if name else ''}
+  <div class="kind">Market Conditions Report · {escape(kind)}</div>
+  <h1>{escape(ticker)}</h1>
+  <div class="sub">An educational look at current market conditions, as of {escape(date)}</div>
+  <div class="tiles">
+    <div class="tile"><div class="label">{escape(price_label)}</div><div class="value">{escape(price_value)}</div>{f'<div class="note">{escape(price_note)}</div>' if price_note else ''}</div>
+    <div class="tile"><div class="label">{escape(trend_label)}</div><div class="value" style="font-size:13pt">{escape(trend_value)}</div>{f'<div class="note">{escape(trend_note)}</div>' if trend_note else ''}</div>
+    <div class="tile"><div class="label">Analysis date</div><div class="value">{escape(date)}</div></div>
+  </div>
+  <div class="cover-notice">{notice}</div>
+  <div class="foot"><span>Prepared {escape(generated)}{f' · {contact}' if contact else ''}</span><span>Educational research only · Not investment advice</span></div>
+  <div class="band"></div>
+</div>"""
+    gap_items = "".join(f"<li>{escape(g)}</li>" for g in gaps) or "<li>None detected by the automated quality check.</li>"
+    about = f"""
+<section class="about">
+  <div class="eyebrow">Read this first</div>
+  <h2>About this report</h2>
+  <div class="edu-box">{notice}</div>
+  <h3>What this report is</h3>
+  <p>An educational case study of {escape(ticker)} market conditions on {escape(date)}. A team of AI agents studied
+  price trends, momentum, fundamentals or on-chain data, flows, positioning and sentiment, debated what the evidence
+  means, and wrote up their reasoning. The goal is to show <strong>how</strong> market data can be read and weighed,
+  using a real, current example.</p>
+  <h3>Facts, not advice</h3>
+  <p>This edition describes market conditions only. It contains no buy, sell or hold ratings, no price targets,
+  no entry or exit points, no position sizes and no recommendations of any kind. Where the report discusses price
+  levels or what would change the picture, it is describing what the data shows and how analysts commonly read it,
+  not telling anyone what to do.</p>
+  {f'<h3>Timing of the data</h3><p>{escape(timing)}</p>' if timing else ''}
+  <h3>Known gaps in this run</h3>
+  <ul>{gap_items}</ul>
+  <h3>Quality check</h3>
+  <p>Before delivery, an automated quality-control review compared the report's key figures with the underlying
+  market data and checked that it contains no buy, sell or other advice language. AI models can still make
+  mistakes; check figures against original sources.</p>
+</section>"""
+    glance = f"""
+<section class="glance" style="--tone:{tone}">
+  <div class="notice">{notice}</div>
+  <div class="eyebrow">At a glance</div>
+  <h2>{escape(ticker)}: market conditions</h2>
+  <div class="facts" style="grid-template-columns: repeat(3, 1fr)">
+    <div><div class="label">{escape(trend_label)}</div><div class="value" style="font-size:11pt">{escape(trend_value)}</div></div>
+    <div><div class="label">{escape(price_label)}</div><div class="value">{escape(price_value)}</div></div>
+    <div><div class="label">Analysis date</div><div class="value">{escape(date)}</div></div>
+  </div>
+  {f'<div class="callout"><h3>Market conditions summary</h3><div class="prose">{md.render(summary)}</div></div>' if summary else ''}
+  <div class="toc"><h3>Inside this report</h3><ol>{"".join(f"<li>{escape(h.partition('. ')[2] or h)}</li>" for h, _f, _w in parts)}<li>Methodology, data and disclosures</li></ol></div>
+</section>"""
+    body = []
+    for heading, _folder, written in parts:
+        body.append(f'<section class="part"><h2>{escape(heading.partition(". ")[2] or heading)}</h2>')
+        for agent, _filename, text in written:
+            body.append(f'<h3 class="agent">{escape(agent)}</h3><div class="prose">{_render_agent_text(md, text)}</div>')
+        body.append("</section>")
+    rows = _method_rows(settings)
+    disclosures = "".join(f"<p><strong>{escape(h)}.</strong> {escape(t)}</p>"
+                          for h, t in full_disclosures("educational"))
+    back = f"""
+<section class="back">
+  <h2>Methodology, data and disclosures</h2>
+  <h3>How this report was produced</h3>
+  <p>A team of AI agents produced this report. Four analysts (market, sentiment, news and fundamentals) gathered
+  data and a bull and a bear researcher debated what it means. An editing agent then rewrote the analysis as a
+  factual description of market conditions, removing any ratings, recommendations or trading instructions, and an
+  automated quality check reviewed the report before delivery. Data is limited to what was published by the
+  analysis date.</p>
+  {f'<dl>{rows}</dl>' if rows else ''}
+  <h3>Important disclosures</h3>
+  {disclosures}
+  <p>Generated {escape(generated)}{f' · {contact}' if contact else ''}.</p>
+</section>"""
+    title = escape(f"{ticker} {date} market conditions")
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>{title}</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
+<style>{_css(primary, accent, highlight, name, ticker, educational=True)}</style>
+</head><body>
+{cover}
+{about}
+{glance}
+{"".join(body)}
+{back}
+</body></html>
+"""
+
+
 def find_browser() -> str | None:
     """A Chromium-based browser that can print to PDF, or None."""
     configured = os.getenv("REPORT_PDF_BROWSER", "").strip()
@@ -370,7 +516,8 @@ def html_to_pdf(html_file: Path, pdf_file: Path, browser: str | None = None) -> 
         browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
         "--hide-scrollbars", "--no-pdf-header-footer", f"--print-to-pdf={pdf_file}", html_file.resolve().as_uri(),
     ]
-    if sys.platform.startswith("linux") and hasattr(os, "geteuid") and os.geteuid() == 0:
+    if sys.platform.startswith("linux") and (
+            (hasattr(os, "geteuid") and os.geteuid() == 0) or os.getenv("REPORT_PDF_NO_SANDBOX") == "1"):
         command.insert(1, "--no-sandbox")
     pdf_file.unlink(missing_ok=True)
     try:
