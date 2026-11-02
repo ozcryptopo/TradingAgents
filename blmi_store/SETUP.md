@@ -6,7 +6,7 @@ delivered automatically once it passes quality control.
 ```
 Buyer → storefront → Stripe Checkout → webhook → order queue
       → worker: TradingAgents run → editing agent (facts only) → QC agent → branded PDF → email + download page
-      → QC fails after fix rounds → held for your review (customer told: within 24h or refund)
+      → QC fails after fix rounds → held for your review (released after review, or refunded automatically at 24h)
       → run crashes twice → automatic full refund
 ```
 
@@ -14,6 +14,7 @@ Buyer → storefront → Stripe Checkout → webhook → order queue
 |---|---|
 | `REPORT_SPEC.md` | The rules every report agent follows (facts only, structure, formatting, QC criteria). Edit this to change the rules. |
 | `SOCIAL_SPEC.md` | The rules for turning finished reports into Facebook/Instagram content. |
+| `COMPLIANCE.md` | How the business runs: impersonal reports, covered symbols, conflicts, data licences, marketing claims, records. |
 | `editor.py` | Editing agent: rewrites the run as facts only. Trader, risk and portfolio-manager text is never used. |
 | `qc.py` | Quality-control agent: advice scan, number check, moving-average check, AI reviewer, final PDF scan. |
 | `pipeline.py`, `worker.py` | The order pipeline and the worker loop. |
@@ -54,7 +55,10 @@ Buyer → storefront → Stripe Checkout → webhook → order queue
 | `DEEPSEEK_API_KEY` | your DeepSeek key |
 | `TRADINGAGENTS_LLM_PROVIDER` | `deepseek` |
 | `TRADINGAGENTS_DEEP_THINK_LLM` / `TRADINGAGENTS_QUICK_THINK_LLM` | `deepseek-flash` (same as your Mac) |
-| `FRED_API_KEY`, `CRYPTOETF_API_KEY`, `SEC_EDGAR_USER_AGENT` | same as your Mac's `.env` (optional `COINGLASS_API_KEY`) |
+| `FRED_API_KEY`, `CRYPTOETF_API_KEY` | same as your Mac's `.env` (optional `COINGLASS_API_KEY`), once their commercial terms are cleared (`COMPLIANCE.md` §6) |
+| `SEC_EDGAR_USER_AGENT` | **Required**: your business name and a real email, e.g. `Bright Launch Digital Marketing reports@brightlaunchdigital.com` (SEC fair-access rule) |
+| `OWNER_HOLDINGS` | Symbols you or the business hold, comma-separated; keep current (`COMPLIANCE.md` §4) |
+| `BLOCKED_SYMBOLS` | Symbols never to sell reports or post about |
 | Optional | `PRICE_QUICK_CENTS=900`, `PRICE_DEEP_CENTS=2900`, `DEEP_DEBATE_ROUNDS=3`, `QC_FIX_ROUNDS=2` |
 
 ## 3. Stripe webhook
@@ -71,13 +75,33 @@ Stripe → Developers → Webhooks → Add endpoint:
 3. Open `https://<domain>/admin?key=<ADMIN_KEY>` to see the order, its quality-check report and the PDF.
 4. Try a stock too (e.g. `NVDA`). Then switch the Stripe keys and webhook to live mode.
 
-## 5. Running it
+## 5. Before taking real payments (all required)
 
-- **Admin page** `/admin?key=…`: every order, revenue, quality-check details. Held reports have **Send to customer**
-  (after you've read the PDF), **Re-run** and **Refund** buttons.
+1. A securities lawyer has reviewed `REPORT_SPEC.md`, `SOCIAL_SPEC.md`, `COMPLIANCE.md`, `pages/terms.html` and the
+   storefront copy.
+2. Every "decision needed" data source in `COMPLIANCE.md` §6 is licensed for commercial use, replaced or turned off.
+3. The website shows a contact email, a mailing address (P.O. box or virtual mailbox), the terms, a privacy policy and
+   the refund policy, and states customers must be 18 or older.
+4. Stripe has been told accurately what the business sells (an educational market-research publication) and has
+   accepted it.
+5. Symbol limits from `COMPLIANCE.md` §5 are switched on.
+6. Ten or more test reports across stocks, ETFs and crypto have passed QC and been read in full by you, with no
+   advice, forecasts or opinions found.
+
+## 6. Running it
+
+- **Admin page** `/admin?key=…`: every order, revenue, quality-check details. Held reports have **Send to customer**,
+  **Re-run** and **Refund** buttons. Only press **Send to customer** after reading the whole PDF and confirming none
+  of `REPORT_SPEC.md` §2's forbidden content is in it; add a note saying what you checked. Held reports not released
+  within 24 hours of payment are refunded automatically.
+- **Customer emails:** never answer "should I buy/sell" or questions about a customer's own money. Use the standard
+  reply in `SOCIAL_SPEC.md` §11.
 - **Costs per report**: DeepSeek usage (roughly $0.50-$2 for a deep run) plus Railway time. Stripe takes about
   2.9% + 30¢.
-- **Changing rules**: edit `REPORT_SPEC.md` (reports) or `SOCIAL_SPEC.md` (social posts) and redeploy. No code changes.
+- **Changing rules**: edit `REPORT_SPEC.md` (reports), `SOCIAL_SPEC.md` (social posts) or `COMPLIANCE.md` (business
+  policy) and redeploy. Wording rules take effect without code changes; the deterministic advice scan in `qc.py`
+  should be updated to match any new forbidden wording.
+- **Records:** keep orders, QC reports, delivered PDFs and posted content for at least 5 years (`COMPLIANCE.md` §9).
 - **Every delivered report also saves a facts-only Markdown copy** next to the PDF (`BLMI_<TICKER>_<DATE>.md`). That
   is the input for social content (see `SOCIAL_SPEC.md`).
 
@@ -91,5 +115,4 @@ stripe listen --forward-to localhost:8000/api/stripe/webhook                    
 pytest tests/store
 ```
 
-Before charging real customers, have a securities lawyer review the disclaimers, the terms page (`pages/terms.html`)
-and `REPORT_SPEC.md`.
+Do not charge real customers until every item in section 5 is done.
