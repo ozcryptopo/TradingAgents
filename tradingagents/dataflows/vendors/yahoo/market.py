@@ -10,7 +10,12 @@ from stockstats import wrap
 from tradingagents.dataflows.errors import NoMarketDataError, VendorError
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.common import raise_for_empty, yf_retry
-from tradingagents.dataflows.vendors.yahoo.ohlcv import _assert_ohlcv_not_stale, load_ohlcv
+from tradingagents.dataflows.vendors.yahoo.ohlcv import (
+    _assert_ohlcv_not_stale,
+    crypto_candle_is_open,
+    load_ohlcv,
+    utc_now_naive,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +65,19 @@ def get_YFin_data_online(
     # instrument was priced.
     label = canonical if canonical == symbol.upper() else f"{canonical} (from {symbol})"
     header = f"# Stock data for {label} from {start_date} to {end_date}\n"
-    header += f"# Total records: {len(data)}\n\n"
+    header += f"# Total records: {len(data)}\n"
+    # Crypto has no closing bell: the last row may be today's unfinished UTC
+    # candle, whose Close is the live price and whose High/Low are still moving.
+    last_date = data.index[-1] if len(data) else None
+    run_utc = utc_now_naive()
+    if crypto_candle_is_open(canonical, last_date, run_utc):
+        header += (
+            f"# NOTE: the {pd.Timestamp(last_date).date()} row is an UNFINISHED candle "
+            f"(crypto daily candles close at 00:00 UTC; data pulled "
+            f"{run_utc.strftime('%Y-%m-%d %H:%M')} UTC). Its Close is the live price "
+            f"at report time, not a close. Do not call it a close.\n"
+        )
+    header += "\n"
 
     return header + csv_string
 
@@ -293,4 +310,6 @@ def get_stock_stats(
         indicator_value = matching_rows[indicator].values[0]
         return indicator_value
     else:
+        if crypto_candle_is_open(symbol, pd.to_datetime(as_of_date)):
+            return "N/A: today's crypto candle has not closed yet (closes 00:00 UTC)"
         return "N/A: Not a trading day (weekend or holiday)"

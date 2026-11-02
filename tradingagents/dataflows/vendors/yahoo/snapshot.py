@@ -17,7 +17,11 @@ from stockstats import wrap
 
 from tradingagents.dataflows.errors import NoMarketDataError
 from tradingagents.dataflows.symbols import normalize_symbol
-from tradingagents.dataflows.vendors.yahoo.ohlcv import load_ohlcv
+from tradingagents.dataflows.vendors.yahoo.ohlcv import (
+    load_ohlcv,
+    split_open_crypto_candle,
+    utc_now_naive,
+)
 
 # A fixed, common indicator set so the snapshot is the same shape every run.
 DEFAULT_SNAPSHOT_INDICATORS: tuple[str, ...] = (
@@ -27,7 +31,7 @@ DEFAULT_SNAPSHOT_INDICATORS: tuple[str, ...] = (
 )
 
 
-def _verified_rows(symbol: str, as_of_date: str) -> pd.DataFrame:
+def _verified_rows(symbol: str, as_of_date: str, keep_open_candle: bool = False) -> pd.DataFrame:
     """OHLCV on or before as_of_date, date-sorted. Raises NoMarketDataError if nothing usable.
 
     ``load_ohlcv`` already normalizes the Date column and filters out
@@ -36,7 +40,7 @@ def _verified_rows(symbol: str, as_of_date: str) -> pd.DataFrame:
     """
     # As reported: this snapshot is quoted by the agents as exact prices, so a
     # gap-filled cell would put the previous session's number under this date.
-    data = load_ohlcv(symbol, as_of_date, fill_gaps=False)
+    data = load_ohlcv(symbol, as_of_date, fill_gaps=False, keep_open_candle=keep_open_candle)
     if data is None or data.empty:
         raise NoMarketDataError(symbol, normalize_symbol(symbol), "no price rows")
 
@@ -73,7 +77,13 @@ def build_verified_market_snapshot(
     # `df` keeps the original capitalized OHLCV columns (Open/High/Low/Close/
     # Volume); stockstats `wrap()` lowercases columns and adds indicator
     # columns, so read raw prices from `df` and indicators from `stock_df`.
-    df = _verified_rows(symbol, as_of_date)
+    # Crypto: an unfinished UTC-day candle is quoted as the live price, never as
+    # a close, and the indicators below run on closed candles only.
+    df = _verified_rows(symbol, as_of_date, keep_open_candle=True)
+    run_utc = utc_now_naive()
+    df, open_row = split_open_crypto_candle(df, symbol, run_utc)
+    if df.empty:
+        raise NoMarketDataError(symbol, normalize_symbol(symbol), "no closed daily candle yet")
     stock_df = wrap(df.copy())
 
     selected = tuple(indicators or DEFAULT_SNAPSHOT_INDICATORS)
@@ -96,8 +106,29 @@ def build_verified_market_snapshot(
         f"- Requested analysis date: {as_of_date}",
         f"- Latest trading row used: {latest_date}",
         "- Rows after the requested analysis date are excluded before verification.",
+    ]
+    if open_row is not None:
+        lines += [
+            "",
+            "### Live price (unfinished candle, NOT a close)",
+            "",
+            "Crypto trades 24/7. A daily close is the 00:00 UTC candle close; a "
+            "weekly close is Sunday 00:00 UTC. The current UTC day has not closed, so "
+            "its price is live and must be called the price at report time, never "
+            "the close. Indicators and the latest row below use closed candles only.",
+            "",
+            "| Field | Value |",
+            "|---|---:|",
+            f"| Price at report time | {_fmt(open_row.get('Close'))} |",
+            f"| Report time (UTC) | {run_utc.strftime('%Y-%m-%d %H:%M')} |",
+            f"| Unfinished candle date | {_fmt(open_row['Date'])} |",
+            f"| Intraday high so far | {_fmt(open_row.get('High'))} |",
+            f"| Intraday low so far | {_fmt(open_row.get('Low'))} |",
+            f"| Candle closes at | {(pd.Timestamp(open_row['Date']).normalize() + pd.Timedelta(days=1)).strftime('%Y-%m-%d')} 00:00 UTC |",
+        ]
+    lines += [
         "",
-        "### Latest verified OHLCV row",
+        "### Latest verified OHLCV row (closed candle)" if open_row is not None else "### Latest verified OHLCV row",
         "",
         "| Field | Value |",
         "|---|---:|",

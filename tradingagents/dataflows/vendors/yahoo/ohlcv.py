@@ -7,7 +7,7 @@ import yfinance as yf
 from tradingagents.dataflows.config import get_config
 from tradingagents.dataflows.errors import NoMarketDataError
 from tradingagents.dataflows.files import replace_file
-from tradingagents.dataflows.symbols import normalize_symbol, safe_ticker_component
+from tradingagents.dataflows.symbols import crypto_base, normalize_symbol, safe_ticker_component
 from tradingagents.dataflows.vendors.yahoo.common import raise_for_empty, yf_retry
 
 logger = logging.getLogger(__name__)
@@ -143,6 +143,41 @@ def _assert_ohlcv_not_stale(
         )
 
 
+def utc_now_naive() -> pd.Timestamp:
+    """The current time in UTC, without tz info, to compare with bar dates."""
+    return pd.Timestamp.now(tz="UTC").tz_localize(None)
+
+
+def crypto_candle_is_open(symbol: str, bar_date, now_utc: pd.Timestamp | None = None) -> bool:
+    """True when ``bar_date`` is a crypto daily candle that has not closed yet.
+
+    Crypto trades 24/7, so there is no closing bell: Yahoo's daily crypto
+    candle runs 00:00-24:00 UTC, and its ``Close`` is only a close once the
+    UTC day is over. Before then it is the live price, and its High/Low can
+    come from a slightly different moment than its Close (a "close" below the
+    session low). Stocks are not affected by this check.
+    """
+    if crypto_base(symbol) is None or bar_date is None or pd.isna(bar_date):
+        return False
+    now_utc = utc_now_naive() if now_utc is None else now_utc
+    return pd.Timestamp(bar_date).normalize() + pd.Timedelta(days=1) > now_utc
+
+
+def split_open_crypto_candle(
+    data: pd.DataFrame, symbol: str, now_utc: pd.Timestamp | None = None
+) -> tuple[pd.DataFrame, pd.Series | None]:
+    """Split an unfinished crypto daily candle off the end of ``data``.
+
+    Returns ``(settled_rows, open_row_or_None)``.
+    """
+    if data.empty or "Date" not in data.columns:
+        return data, None
+    last = data.iloc[-1]
+    if crypto_candle_is_open(symbol, last["Date"], now_utc):
+        return data.iloc[:-1].copy(), last
+    return data, None
+
+
 def _cache_is_fresh(data_file, as_of_dt, now) -> bool:
     """Whether the symbol's cached download can serve this request.
 
@@ -158,7 +193,12 @@ def _cache_is_fresh(data_file, as_of_dt, now) -> bool:
     return as_of_dt.date() < now.date() or (now - written).total_seconds() <= OHLCV_CACHE_TTL_SECONDS
 
 
-def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataFrame:
+def load_ohlcv(
+    symbol: str,
+    as_of_date: str,
+    fill_gaps: bool = True,
+    keep_open_candle: bool = False,
+) -> pd.DataFrame:
     """Fetch OHLCV data with caching, filtered to prevent look-ahead bias.
 
     Downloads 5 years of data up to today and caches per symbol. On
@@ -168,6 +208,10 @@ def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataF
     ``fill_gaps`` carries prices forward over gaps so indicators compute on a
     continuous series. Pass ``False`` to read the values as the vendor reported
     them, leaving a cell that was never reported empty.
+
+    For crypto, an unfinished daily candle (the current UTC day) is dropped so
+    indicators run on real closes only. Pass ``keep_open_candle=True`` to keep
+    it, e.g. to quote the live price separately from the last close.
     """
     # Resolve broker/forex symbols (XAUUSD+ -> GC=F) to Yahoo's convention,
     # then reject values that would escape the cache directory when
@@ -228,6 +272,14 @@ def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataF
 
     # Filter to as_of_date to prevent look-ahead bias in backtesting.
     data = data[data["Date"] <= as_of_dt]
+
+    if not keep_open_candle:
+        data, open_row = split_open_crypto_candle(data, canonical)
+        if open_row is not None:
+            logger.info(
+                "%s: the %s daily candle is still open (crypto closes at 00:00 UTC); "
+                "using closed candles only.", canonical, open_row["Date"].date(),
+            )
 
     # A closeless newest bar is an unsettled session, not a symbol without data.
     # _fill_price_gaps below drops it, here and mid-series alike, so the frame
