@@ -11,14 +11,13 @@ In `on_order_event`, find this line:
         if self.entry_ticket and e.order_id == self.entry_ticket.order_id and self.pending:
 ```
 
-Replace that one line with these three lines (8-space indent):
+Replace that one line with these two lines (8-space indent):
 
 ```python
         tag = self.transactions.get_order_by_id(e.order_id).tag
         if self.pending and self.trade is None and tag in ("buy", "sell"):
 ```
 
-(That's 2 lines; the comment is optional.)
 
 ## Edit 2: rename `record` to `record_trade`
 Find and replace (Ctrl+H) `self.record(` with `self.record_trade(`. There are 3 occurrences.
