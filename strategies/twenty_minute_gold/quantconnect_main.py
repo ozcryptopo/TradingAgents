@@ -103,6 +103,10 @@ class GoldDowDivergence(QCAlgorithm):
         t = now.time()
         in_session = self.session_start <= t < self.session_end
 
+        # safety net: never hold a position the strategy isn't tracking
+        if self.trade is None and self.pending is None and self.portfolio.invested:
+            self.liquidate(tag="untracked position")
+
         # manage an open trade
         if self.trade is not None:
             held = (now - self.trade["time"]).total_seconds()
@@ -196,7 +200,10 @@ class GoldDowDivergence(QCAlgorithm):
     def on_order_event(self, e: OrderEvent):
         if e.status != OrderStatus.FILLED:
             return
-        if self.entry_ticket and e.order_id == self.entry_ticket.order_id and self.pending:
+        # Backtest market orders fill before market_order() returns, so the entry
+        # is recognised by its tag rather than by self.entry_ticket.
+        tag = self.transactions.get_order_by_id(e.order_id).tag
+        if self.pending and self.trade is None and tag in ("buy", "sell"):
             d, ticks = self.pending["dir"], self.pending["ticks"]
             self.pending = None
             dist = ticks * self.tick
@@ -208,10 +215,10 @@ class GoldDowDivergence(QCAlgorithm):
             self.target_ticket = self.limit_order(e.symbol, -d * self.qty, target, tag="target")
         elif self.trade and self.stop_ticket and e.order_id == self.stop_ticket.order_id:
             self.target_ticket.cancel()
-            self.record("stop")
+            self.record_trade("stop")
         elif self.trade and self.target_ticket and e.order_id == self.target_ticket.order_id:
             self.stop_ticket.cancel()
-            self.record("target")
+            self.record_trade("target")
 
     def exit_trade(self, reason):
         for tk in (self.stop_ticket, self.target_ticket):
@@ -220,9 +227,9 @@ class GoldDowDivergence(QCAlgorithm):
         sym, d = self.trade["symbol"], self.trade["dir"]
         if self.portfolio[sym].quantity != 0:
             self.market_order(sym, -self.portfolio[sym].quantity, tag=reason)
-        self.record(reason)
+        self.record_trade(reason)
 
-    def record(self, reason):
+    def record_trade(self, reason):
         pnl = self.portfolio.total_portfolio_value - self.trade["equity"]
         self.results.append((reason, pnl))
         self.trade = None
