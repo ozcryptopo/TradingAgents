@@ -46,6 +46,13 @@ class GoldDowDivergence(QCAlgorithm):
         self.session_end = dtime(*map(int, self.get_parameter("session_end", "11:00").split(":")))
         gold_ticker = self.get_parameter("gold_ticker", "MGC")  # MGC = micro gold, GC = full size
         self.invert = self.get_parameter("invert", 0)  # 1 = trade the opposite way to the video
+        self.rule = self.get_parameter("rule", "rsi")  # "rsi" = divergence + RSI pop, "lead" = index leads
+        self.spike_sec = self.get_parameter("spike_sec", 30)
+        self.spike_pct = self.get_parameter("spike_pct", 0.03)   # %
+        self.lag_tol = self.get_parameter("lag_tol", 0.01)       # %
+        self.near_ticks = self.get_parameter("near_ticks", 10)
+
+        self.costs = self.get_parameter("costs", 1)  # 0 = no fees or slippage (to measure raw edge)
 
         # ---- data: continuous front-month contracts, 1-second bars ----
         common = dict(extended_market_hours=True,
@@ -82,11 +89,16 @@ class GoldDowDivergence(QCAlgorithm):
         self.long_div_hist, self.short_div_hist = deque(maxlen=w), deque(maxlen=w)
         self.prev_close = self.avg_up = self.avg_dn = None
         self.prev_long_pop = self.prev_short_pop = False
+        self.prev_lead = 0
 
     def on_securities_changed(self, changes):
-        # ~1 tick of slippage on gold market and stop orders
+        # ~1 tick of slippage on gold market and stop orders; costs = 0 removes fees and slippage
         for s in changes.added_securities:
-            s.set_slippage_model(ConstantSlippageModel(0.00003))
+            if self.costs:
+                s.set_slippage_model(ConstantSlippageModel(0.00003))
+            else:
+                s.set_slippage_model(NullSlippageModel())
+                s.set_fee_model(ConstantFeeModel(0))
 
     # ------------------------------------------------------------ data
     def on_data(self, data: Slice):
@@ -130,6 +142,8 @@ class GoldDowDivergence(QCAlgorithm):
             self.active = True
 
         signal = self.update_signals(gbar)
+        if self.rule == "lead":
+            signal = self.lead_signal()
         if self.invert:
             signal = -signal
         if signal == 0 or not in_session or self.trade is not None or self.pending is not None:
@@ -142,13 +156,36 @@ class GoldDowDivergence(QCAlgorithm):
             return
 
         c = gbar.close
-        dist = c - (min(self.lows) - self.buf_ticks * self.tick) if signal == 1 \
-            else (max(self.highs) + self.buf_ticks * self.tick) - c
+        lows = self.closes if self.rule == "lead" else self.lows
+        highs = self.closes if self.rule == "lead" else self.highs
+        dist = c - (min(lows) - self.buf_ticks * self.tick) if signal == 1 \
+            else (max(highs) + self.buf_ticks * self.tick) - c
         ticks = max(round(dist / self.tick), self.min_ticks)
         self.pending = {"dir": signal, "ticks": ticks, "equity": self.portfolio.total_portfolio_value}
         self.trades_today += 1
         self.entry_ticket = self.market_order(self.gold.mapped, signal * self.qty,
                                               tag="buy" if signal == 1 else "sell")
+
+    def lead_signal(self) -> int:
+        # Video rule: gold sinks into a U, the Dow jumps first, buy gold (mirror for shorts)
+        n = self.spike_sec
+        if len(self.closes) < self.closes.maxlen or len(self.closes) <= n:
+            return 0
+        c, d = self.closes[-1], self.dows[-1]
+        g_trend = (c / self.closes[0] - 1) * 100
+        d_jump = (d / self.dows[-1 - n] - 1) * 100
+        g_jump = (c / self.closes[-1 - n] - 1) * 100
+        near_low = c - min(self.closes) <= self.near_ticks * self.tick
+        near_high = max(self.closes) - c <= self.near_ticks * self.tick
+        sig = 0
+        if g_trend <= -self.min_gold_move and near_low and d_jump >= self.spike_pct and g_jump <= self.lag_tol:
+            sig = 1
+        elif g_trend >= self.min_gold_move and near_high and d_jump <= -self.spike_pct and g_jump >= -self.lag_tol:
+            sig = -1
+        if sig == self.prev_lead:
+            return 0
+        self.prev_lead = sig
+        return sig
 
     def update_signals(self, bar) -> int:
         c = bar.close
