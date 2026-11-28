@@ -1,0 +1,140 @@
+//@version=6
+// Gold / Dow divergence + RSI pop
+// -------------------------------------------------------------------------
+// Rules (from the "20-Minute Trader" video, with the vague parts turned
+// into adjustable numbers):
+//   1. Over the last ~90-120 seconds, gold (this chart) and the Dow (YM)
+//      move apart: gold up while the Dow is flat/down -> look to BUY gold;
+//      gold down while the Dow is flat/up -> look to SELL gold.
+//   2. Wait for the RSI to "pop" sharply AGAINST that direction
+//      (a sharp drop for a buy, a sharp jump for a sell).
+//   3. Enter on that bar; stop-loss and take-profit at a set reward:risk.
+//
+// Built for a 1-second chart of gold futures (e.g. COMEX:MGC1! micro gold).
+// Paper-trade it first. Nothing here is proven to make money.
+// -------------------------------------------------------------------------
+strategy("Gold/Dow Divergence + RSI Pop", shorttitle = "GoldDiv", overlay = true,
+      default_qty_type = strategy.fixed, default_qty_value = 1,
+      commission_type = strategy.commission.cash_per_contract, commission_value = 0.85,
+      slippage = 1, initial_capital = 5000)
+
+// ---------- Inputs ----------
+grpSig = "1. Divergence (gold vs Dow)"
+refSymbol   = input.symbol("CBOT_MINI:YM1!", "Dow reference (orange line)", group = grpSig)
+lookbackSec = input.int(120, "Divergence window (seconds)", minval = 10, group = grpSig)
+minGoldMove = input.float(0.03, "Min gold move over window (%)", minval = 0, step = 0.01, group = grpSig)
+dowFlatTol  = input.float(0.01, "Dow counts as 'flat' within (%)", minval = 0, step = 0.01, group = grpSig)
+minSpread   = input.float(0.04, "Min gap between gold and Dow moves (%)", minval = 0, step = 0.01, group = grpSig)
+
+grpRsi = "2. RSI pop"
+rsiLen   = input.int(5, "RSI length", minval = 2, group = grpRsi)
+rsiTf    = input.timeframe("", "RSI timeframe (blank = chart; '5S' repaints in live trading)", group = grpRsi)
+popBars  = input.int(3, "Pop must happen within (bars)", minval = 1, group = grpRsi)
+popSize  = input.float(15.0, "Min pop size (RSI points)", minval = 1, group = grpRsi)
+popVsAvg = input.float(3.0, "Pop must be this many times a normal wiggle (0 = off)", minval = 0, step = 0.5, group = grpRsi)
+
+grpRisk = "3. Trade management"
+stopMode    = input.string("Pop extreme", "Stop placement", options = ["Pop extreme", "Fixed ticks"], group = grpRisk)
+fixedTicks  = input.int(20, "Fixed stop size (ticks)", minval = 1, group = grpRisk)
+minTicks    = input.int(5, "Minimum stop size (ticks)", minval = 1, group = grpRisk)
+bufTicks    = input.int(2, "Extra ticks beyond the pop's low/high", minval = 0, group = grpRisk)
+rr          = input.float(1.0, "Reward : risk (1 = video's equal stop/target)", minval = 0.5, step = 0.5, group = grpRisk)
+maxHoldSec  = input.int(600, "Close trade after (seconds, 0 = never)", minval = 0, group = grpRisk)
+cooldownSec = input.int(60, "Wait after a trade closes (seconds)", minval = 0, group = grpRisk)
+maxTrades   = input.int(5, "Max trades per day", minval = 1, group = grpRisk)
+maxDayLoss  = input.float(300, "Stop for the day after losing ($)", minval = 1, group = grpRisk)
+tradeHours  = input.session("0900-1100", "Trading hours (New York time)", group = grpRisk)
+
+// ---------- Helpers ----------
+tfSec      = timeframe.in_seconds()
+toBars(s)  => math.max(1, math.round(s / tfSec))
+n          = toBars(lookbackSec)
+holdBars   = toBars(maxHoldSec)
+coolBars   = toBars(cooldownSec)
+tick       = syminfo.mintick
+
+strategy.risk.max_intraday_loss(maxDayLoss, strategy.cash)
+
+// ---------- Divergence ----------
+dowClose = request.security(refSymbol, timeframe.period, close)
+goldChg  = (close / close[n] - 1) * 100
+dowChg   = (dowClose / dowClose[n] - 1) * 100
+
+longDiv  = goldChg >= minGoldMove and dowChg <= dowFlatTol and goldChg - dowChg >= minSpread
+shortDiv = goldChg <= -minGoldMove and dowChg >= -dowFlatTol and dowChg - goldChg >= minSpread
+
+// ---------- RSI pop ----------
+rsi      = request.security(syminfo.tickerid, rsiTf, ta.rsi(close, rsiLen))
+avgMove  = ta.sma(math.abs(ta.change(rsi)), 30)
+dropSize = ta.highest(rsi, popBars + 1) - rsi
+riseSize = rsi - ta.lowest(rsi, popBars + 1)
+
+relOK(sz) => popVsAvg == 0 or sz >= popVsAvg * avgMove[popBars + 1]
+longPop  = dropSize >= popSize and relOK(dropSize)
+shortPop = riseSize >= popSize and relOK(riseSize)
+
+// The pop itself can shrink the divergence, so accept it if the divergence
+// was there just before the pop started.
+longSignal  = longPop and not longPop[1] and (longDiv or longDiv[popBars])
+shortSignal = shortPop and not shortPop[1] and (shortDiv or shortDiv[popBars])
+
+// ---------- Session, daily count, cooldown ----------
+inSession = not na(time(timeframe.period, tradeHours, "America/New_York"))
+nyDay     = dayofmonth(time, "America/New_York")
+
+var int tradesToday = 0
+var int lastExitBar = na
+if nyDay != nyDay[1]
+    tradesToday := 0
+if strategy.position_size != 0 and strategy.position_size[1] == 0
+    tradesToday += 1
+if strategy.closedtrades > strategy.closedtrades[1]
+    lastExitBar := bar_index
+
+flat   = strategy.position_size == 0
+coolOK = na(lastExitBar) or bar_index - lastExitBar >= coolBars
+canTrade = inSession and flat and coolOK and tradesToday < maxTrades and not (longSignal and shortSignal)
+
+// ---------- Orders ----------
+popLow  = ta.lowest(low, popBars + 1)
+popHigh = ta.highest(high, popBars + 1)
+
+longDist   = stopMode == "Fixed ticks" ? fixedTicks * tick : close - (popLow - bufTicks * tick)
+shortDist  = stopMode == "Fixed ticks" ? fixedTicks * tick : (popHigh + bufTicks * tick) - close
+longTicks  = math.max(math.round(longDist / tick), minTicks)
+shortTicks = math.max(math.round(shortDist / tick), minTicks)
+
+if canTrade and longSignal
+    strategy.entry("Long", strategy.long,
+          alert_message = '{"action":"buy","symbol":"' + syminfo.ticker + '","qty":1}')
+    strategy.exit("Long exit", from_entry = "Long", loss = longTicks, profit = math.round(longTicks * rr),
+          alert_message = '{"action":"exit","symbol":"' + syminfo.ticker + '"}')
+
+if canTrade and shortSignal
+    strategy.entry("Short", strategy.short,
+          alert_message = '{"action":"sell","symbol":"' + syminfo.ticker + '","qty":1}')
+    strategy.exit("Short exit", from_entry = "Short", loss = shortTicks, profit = math.round(shortTicks * rr),
+          alert_message = '{"action":"exit","symbol":"' + syminfo.ticker + '"}')
+
+// Time stop and end-of-session flatten
+if strategy.position_size != 0
+    if maxHoldSec > 0 and bar_index - strategy.opentrades.entry_bar_index(0) >= holdBars
+        strategy.close_all("Time stop")
+    else if not inSession
+        strategy.close_all("Session end")
+
+// ---------- Visuals ----------
+bgcolor(longDiv ? color.new(color.green, 92) : shortDiv ? color.new(color.red, 92) : na, title = "Divergence")
+plotshape(canTrade and longSignal, "Buy signal", shape.triangleup, location.belowbar, color.green, size = size.small)
+plotshape(canTrade and shortSignal, "Sell signal", shape.triangledown, location.abovebar, color.red, size = size.small)
+
+var table info = table.new(position.top_right, 2, 4, bgcolor = color.new(color.black, 20))
+if barstate.islast
+    table.cell(info, 0, 0, "Gold move", text_color = color.white)
+    table.cell(info, 1, 0, str.tostring(goldChg, "#.###") + "%", text_color = #4a90e2)
+    table.cell(info, 0, 1, "Dow move", text_color = color.white)
+    table.cell(info, 1, 1, str.tostring(dowChg, "#.###") + "%", text_color = #f5a623)
+    table.cell(info, 0, 2, "RSI", text_color = color.white)
+    table.cell(info, 1, 2, str.tostring(rsi, "#.0"), text_color = color.white)
+    table.cell(info, 0, 3, "Trades today", text_color = color.white)
+    table.cell(info, 1, 3, str.tostring(tradesToday) + " / " + str.tostring(maxTrades), text_color = color.white)
