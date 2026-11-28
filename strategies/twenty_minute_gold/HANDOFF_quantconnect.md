@@ -49,8 +49,10 @@ from datetime import time as dtime, timedelta
 class GoldDowDivergence(QCAlgorithm):
 
     def initialize(self):
-        self.set_start_date(2025, 9, 1)
-        self.set_end_date(2025, 10, 31)
+        start = datetime.strptime(self.get_parameter("start", "2025-09-01"), "%Y-%m-%d")
+        end = datetime.strptime(self.get_parameter("end", "2025-10-31"), "%Y-%m-%d")
+        self.set_start_date(start.year, start.month, start.day)
+        self.set_end_date(end.year, end.month, end.day)
         self.set_cash(10000)
         self.set_time_zone(TimeZones.NEW_YORK)
 
@@ -74,6 +76,7 @@ class GoldDowDivergence(QCAlgorithm):
         self.session_start = dtime(*map(int, self.get_parameter("session_start", "09:00").split(":")))
         self.session_end = dtime(*map(int, self.get_parameter("session_end", "11:00").split(":")))
         gold_ticker = self.get_parameter("gold_ticker", "MGC")  # MGC = micro gold, GC = full size
+        self.invert = self.get_parameter("invert", 0)  # 1 = trade the opposite way to the video
 
         # ---- data: continuous front-month contracts, 1-second bars ----
         common = dict(extended_market_hours=True,
@@ -158,6 +161,8 @@ class GoldDowDivergence(QCAlgorithm):
             self.active = True
 
         signal = self.update_signals(gbar)
+        if self.invert:
+            signal = -signal
         if signal == 0 or not in_session or self.trade is not None or self.pending is not None:
             return
         if self.trades_today >= self.max_trades:
@@ -171,7 +176,7 @@ class GoldDowDivergence(QCAlgorithm):
         dist = c - (min(self.lows) - self.buf_ticks * self.tick) if signal == 1 \
             else (max(self.highs) + self.buf_ticks * self.tick) - c
         ticks = max(round(dist / self.tick), self.min_ticks)
-        self.pending = {"dir": signal, "ticks": ticks}
+        self.pending = {"dir": signal, "ticks": ticks, "equity": self.portfolio.total_portfolio_value}
         self.trades_today += 1
         self.entry_ticket = self.market_order(self.gold.mapped, signal * self.qty,
                                               tag="buy" if signal == 1 else "sell")
@@ -236,12 +241,13 @@ class GoldDowDivergence(QCAlgorithm):
         tag = self.transactions.get_order_by_id(e.order_id).tag
         if self.pending and self.trade is None and tag in ("buy", "sell"):
             d, ticks = self.pending["dir"], self.pending["ticks"]
+            self.pending_equity = self.pending["equity"]
             self.pending = None
             dist = ticks * self.tick
             stop = self.round_tick(e.fill_price - d * dist)
             target = self.round_tick(e.fill_price + d * dist * self.rr)
             self.trade = {"dir": d, "symbol": e.symbol, "entry": e.fill_price, "time": self.time,
-                          "equity": self.portfolio.total_portfolio_value}
+                          "equity": self.pending_equity}
             self.stop_ticket = self.stop_market_order(e.symbol, -d * self.qty, stop, tag="stop")
             self.target_ticket = self.limit_order(e.symbol, -d * self.qty, target, tag="target")
         elif self.trade and self.stop_ticket and e.order_id == self.stop_ticket.order_id:
