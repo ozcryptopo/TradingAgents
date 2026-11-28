@@ -24,6 +24,18 @@ Open **Strategy Tester** at the bottom of the chart. Check:
 TradingView keeps only a limited history of 1-second bars, so the backtest covers a short period.
 Paper trading adds more data.
 
+## Python backtest
+
+`backtest.py` runs the same rules outside TradingView (`pip install pandas yfinance`):
+
+```bash
+python backtest.py --source yahoo                         # free 1-minute data, last ~7 days (rough check only)
+python backtest.py --gold gc_1s.csv --dow ym_1s.csv --rr 2 # your own 1-second bars
+```
+
+CSV columns: `timestamp,open,high,low,close`. Fills are conservative: entry at the next bar's open
+plus 1 tick of slippage, and if a bar touches both stop and target the stop is assumed.
+
 ## Settings that replace the video's "feel"
 
 | Setting | Default | Meaning |
