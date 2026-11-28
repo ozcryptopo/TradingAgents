@@ -51,8 +51,8 @@ class GoldDowDivergence(QCAlgorithm):
         self.spike_pct = self.get_parameter("spike_pct", 0.03)   # %
         self.lag_tol = self.get_parameter("lag_tol", 0.01)       # %
         self.near_ticks = self.get_parameter("near_ticks", 10)
-
-        self.costs = self.get_parameter("costs", 1)  # 0 = no fees or slippage (to measure raw edge)
+        self.costs = self.get_parameter("costs", 1)  # 0 = no fees or slippage (edge test)
+        self.debug(f"costs={self.costs!r} max_trades={self.max_trades!r} rule={self.rule!r}")
 
         # ---- data: continuous front-month contracts, 1-second bars ----
         common = dict(extended_market_hours=True,
@@ -92,12 +92,11 @@ class GoldDowDivergence(QCAlgorithm):
         self.prev_lead = 0
 
     def on_securities_changed(self, changes):
-        # ~1 tick of slippage on gold market and stop orders; costs = 0 removes fees and slippage
+        # ~1 tick of slippage on gold market and stop orders
         for s in changes.added_securities:
             if self.costs:
                 s.set_slippage_model(ConstantSlippageModel(0.00003))
             else:
-                s.set_slippage_model(NullSlippageModel())
                 s.set_fee_model(ConstantFeeModel(0))
 
     # ------------------------------------------------------------ data
@@ -163,6 +162,10 @@ class GoldDowDivergence(QCAlgorithm):
         ticks = max(round(dist / self.tick), self.min_ticks)
         self.pending = {"dir": signal, "ticks": ticks, "equity": self.portfolio.total_portfolio_value}
         self.trades_today += 1
+        if not self.costs:
+            sec = self.securities[self.gold.mapped]
+            sec.set_fee_model(ConstantFeeModel(0))
+            sec.set_slippage_model(ConstantSlippageModel(0))
         self.entry_ticket = self.market_order(self.gold.mapped, signal * self.qty,
                                               tag="buy" if signal == 1 else "sell")
 
