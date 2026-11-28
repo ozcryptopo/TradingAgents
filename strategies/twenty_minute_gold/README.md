@@ -60,3 +60,14 @@ plus 1 tick of slippage, and if a bar touches both stop and target the stop is a
   webhook alert (`{{strategy.order.alert_message}}` as the message) going to a service or broker
   that accepts webhooks. Each order already carries a small JSON message for this. Adjust it
   to whatever that service expects.
+
+## QuantConnect backtest (1-second futures data, free)
+
+1. quantconnect.com → **Algorithm Lab** → **Create new algorithm** → Python.
+2. Replace everything in `main.py` with `quantconnect_main.py`.
+3. Click **Backtest**. Default period: Sep–Oct 2025, 09:00–11:00 New York time.
+4. Read the results page (Net Profit, Win Rate, Profit-Loss Ratio, Drawdown) and the last log line,
+   which lists trades, win rate, profit factor and exit reasons.
+
+Change settings in the project's **Parameters** panel, e.g. `rr` = 2, `session_end` = `16:00`,
+or `gold_ticker` = `GC` if micro gold returns no trades.
